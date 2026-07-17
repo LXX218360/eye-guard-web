@@ -1748,22 +1748,24 @@
           showAlert('AI模型已缓存，下次打开将秒开 (' + totalLoadTime + 's)', 'info', '&#x26A1;');
         }, 500);
       }
-      // 如果正在监测中，更新状态提示为AI模式
-      if (appState && appState.monitorActive) {
-        updateMonitorStatus('face', 'good', '画面分析: AI面部检测运行中');
-        updateMonitorStatus('ear', 'good', '眨眼检测: 运行中');
-        updateMonitorStatus('dist', 'good', '距离估算: 运行中');
-        updateMonitorStatus('posture', 'good', '坐姿检测: 运行中');
-      }
-    } catch(err) {
-      console.warn('MediaPipe 初始化失败，将使用像素分析降级方案:', err.message || err);
-      if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: 像素分析模式（AI模型加载失败，已自动降级）';
-      // AI模型加载失败，也启用按钮（使用降级模式）
+      return true;
+
+    } catch (err) {
+      console.error('[MediaPipe] 加载失败:', err);
+      var loadEl = document.getElementById('ai-loading-text');
+      if (loadEl) loadEl.textContent = 'AI模型加载失败，可使用基础监测模式';
+      var loadBar = document.getElementById('ai-loading-bar');
+      if (loadBar) loadBar.style.display = 'none';
+      var tipEl = document.getElementById('ai-first-load-tip');
+      if (tipEl) tipEl.style.display = 'none';
+      // 即使AI模型加载失败，也允许用户开始监测（降级为基础模式）
       window._updateAILoadingProgress && window._updateAILoadingProgress(100, 'AI加载失败，已切换到像素分析模式');
       window._enableStartButton && window._enableStartButton(true, '开启监测(降级模式)');
+      if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: 像素分析模式（AI模型加载失败，已自动降级）';
       if (IS_MOBILE) {
         console.warn('移动端MediaPipe加载失败，可能是设备内存不足或网络问题，已自动降级为像素分析');
       }
+      return false;
     } finally {
       mediapipeInitializing = false;
     }
