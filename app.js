@@ -6130,11 +6130,14 @@ function isPro() {
         }
       } catch(e) {}
       const video = document.getElementById('monitor-video');
+      const phEl = document.getElementById('monitor-placeholder');
+      // 先隐藏占位符，再显示视频
+      if (phEl) phEl.style.display = 'none';
       video.srcObject = stream;
-      video.style.display = 'block';
-      video.muted = true; // 确保静音（自动播放策略）
-      video.playsInline = true; // 移动端内联播放
-      var phEl = document.getElementById('monitor-placeholder'); if (phEl) phEl.style.display = 'none';
+      video.removeAttribute('style'); // 清除内联 display:none，使用 CSS 默认样式
+      video.muted = true;
+      video.playsInline = true;
+      video.style.transform = 'scaleX(-1)'; // 镜像（CSS 中已设，但内联 style 被清除后需重设）
       var lbEl = document.getElementById('monitor-live-badge'); if (lbEl) lbEl.style.display = 'block';
       var slEl = document.getElementById('monitor-scan-line'); if (slEl) slEl.style.display = 'block';
 
