@@ -5782,17 +5782,22 @@
 
     // 联网查询服务器剩余时间（服务器为准，防止本地篡改）
     queryServerFreeUsage().then(function(serverUsedMinutes) {
-      // -1 表示联网查询失败，不允许启动免费试用（防止刷无限时间）
-      if (serverUsedMinutes < 0) {
-        showAlert('网络连接失败，无法验证试用时间。请检查网络后重试', 'warn', '⚠️');
-        stopMonitoring();
-        return;
-      }
       // 以服务器记录的已用时间为准（服务器精确到0.1分钟）
-      var serverUsedSec = Math.round(serverUsedMinutes * 60);
-      var totalLimitSec = appState.freeDailyLimit * 60;
-      _freeSecondsRemaining = Math.max(0, totalLimitSec - serverUsedSec);
-      appState.freeMinutesUsedToday = Math.ceil(serverUsedMinutes);
+      // 如果联网失败(-1)，使用本地记录但标记为离线模式（降级，但仍可用）
+      if (serverUsedMinutes < 0) {
+        // 联网失败，使用本地 localStorage 记录
+        var localUsed = appState.freeMinutesUsedToday || 0;
+        _freeSecondsRemaining = Math.max(0, appState.freeDailyLimit * 60 - localUsed * 60);
+        console.warn('[免费试用] 联网查询失败，使用本地记录: 已用 ' + localUsed + ' 分钟');
+        // 不阻止监测，但标记离线模式
+        window._freeTimerOfflineMode = true;
+      } else {
+        window._freeTimerOfflineMode = false;
+        var serverUsedSec = Math.round(serverUsedMinutes * 60);
+        var totalLimitSec = appState.freeDailyLimit * 60;
+        _freeSecondsRemaining = Math.max(0, totalLimitSec - serverUsedSec);
+        appState.freeMinutesUsedToday = Math.ceil(serverUsedMinutes);
+      }
 
       var badge = document.getElementById('pro-timer-badge');
       if (badge) badge.style.display = 'flex';
@@ -5932,7 +5937,7 @@
       return 0;
     }).catch(function(err) {
       console.error('[免费试用] 联网查询失败:', err);
-      return -1; // -1 表示查询失败，不允许启动监测
+      return -1; // -1 表示查询失败
     });
   }
 
