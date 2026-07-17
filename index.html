@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260717">
 <script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script>// 尝试加载外部 base64 模型文件（与HTML同目录）
     // 若失败则在 initFaceLandmarker 中尝试 fetch 本地 .task 文件
@@ -1331,9 +1331,10 @@
   // 2. 模型直接从 MediaPipe 官方 CDN 加载（无需 4.78MB base64 文件）
   _updateProgress(10, '加载安全模块...');
 
-  // 并行加载 HMAC 和 app.js
-  var hmacPromise = _loadScript('hmac-security.js', 'hmac', false);
-  var appPromise = _loadScript('app.js', 'app', false);
+  // 并行加载 HMAC 和 app.js（加版本号防止缓存）
+  var _v = Date.now(); // 缓存破坏版本号
+  var hmacPromise = _loadScript('hmac-security.js?v=' + _v, 'hmac', false);
+  var appPromise = _loadScript('app.js?v=' + _v, 'app', false);
 
   // 两个都加载完
   Promise.all([hmacPromise, appPromise]).then(function() {
