@@ -1662,9 +1662,9 @@
           console.warn('MediaPipe: file://协议且无内嵌模型，将使用像素分析降级');
         }
       } else {
-        // https/http 协议：直接用 MediaPipe 官方 CDN 模型（无需 4.78MB base64）
-        modelPath = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
-        console.log('MediaPipe: 使用官方CDN模型');
+        // https/http 协议：优先 jsdelivr CDN（国内可用），回退 Google Storage
+        modelPath = 'https://fastly.jsdelivr.net/gh/google/mediapipe@refs/heads/master/mediapipe/tasks/vision/test_data/face_landmarker/face_landmarker.task';
+        console.log('MediaPipe: 使用jsdelivr CDN模型（国内可用）');
       }
 
       // 先尝试GPU，失败后降级CPU（关闭不需要的blendshapes和transformation计算以提升性能）
@@ -7189,15 +7189,16 @@ function isPro() {
       } else {
         btn.textContent = '显示识别框';
         btn.style.background = 'rgba(140,130,115,0.6)';
+        // 立即清除识别框，不等下一帧
+        var canvas = document.getElementById('monitor-overlay-canvas');
+        if (canvas && canvas.getContext) {
+          var ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
       }
-    }
-    // 隐藏时立即清除canvas
-    if (!window._showFaceBox) {
-      var canvas = document.getElementById('monitor-overlay-canvas');
-      if (canvas) {
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
+      // 按钮闪烁反馈（让用户知道点击生效了）
+      btn.style.transform = 'scale(0.95)';
+      setTimeout(function() { btn.style.transform = ''; }, 150);
     }
   }
 
