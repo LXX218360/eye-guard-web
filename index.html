@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script>// 尝试加载外部 base64 模型文件（与HTML同目录）
     // 若失败则在 initFaceLandmarker 中尝试 fetch 本地 .task 文件
     window._faceLandmarkerModelBase64 = null;
@@ -1327,40 +1328,20 @@
   
   // 加载策略：
   // 1. HMAC (6KB) + app.js (610KB) 并行加载 → 加载完即可交互
-  // 2. model-data.js (4.78MB) 用 XHR 后台加载，带实时进度
-  // 3. 模型加载完前，摄像头功能显示"AI模型加载中"
-  _updateProgress(5, '正在初始化...');
+  // 2. 模型直接从 MediaPipe 官方 CDN 加载（无需 4.78MB base64 文件）
+  _updateProgress(10, '加载安全模块...');
 
-  // 并行加载 HMAC 和 app.js（小文件，快速就绪）
+  // 并行加载 HMAC 和 app.js
   var hmacPromise = _loadScript('hmac-security.js', 'hmac', false);
   var appPromise = _loadScript('app.js', 'app', false);
 
-  // app.js 加载完，页面可交互
-  appPromise.then(function() {
-    _onAppReady();
+  // 两个都加载完
+  Promise.all([hmacPromise, appPromise]).then(function() {
+    _updateProgress(100, '加载完成');
+    _hideOverlay();
+    var elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
+    console.log('[护眼精灵] 所有模块加载完成 (' + elapsed + 's)');
   });
-
-  // model-data.js 用 XHR 加载（带进度条），不阻塞 app.js
-  _updateProgress(15, '开始加载AI模型数据...');
-  _loadScript('model-data.js', 'model', true).then(function() {
-    _onAllReady();
-  });
-
-  // 10 秒后如果模型还没好，提示用户
-  setTimeout(function() {
-    if (!_loaded.model) {
-      _updateProgress(_progressEl ? parseInt(_progressEl.style.width) : 50, 'AI模型加载中，您可以先使用其他功能...');
-    }
-  }, 10000);
-
-  // 60 秒超时
-  setTimeout(function() {
-    if (!_loaded.model) {
-      console.error('[护眼精灵] 模型加载超时');
-      _updateProgress(90, 'AI模型加载超时，摄像头功能将使用降级模式');
-      _onAllReady();
-    }
-  }, 60000);
   
 })();
 </script>
