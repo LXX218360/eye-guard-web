@@ -1609,10 +1609,36 @@
     var algoInfoEl = document.getElementById('algo-info');
     if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: AI模型加载中，请稍候...';
 
+    // 检测是否首次加载（通过检查缓存状态）
+    var isFirstLoad = false;
+    try {
+      if ('caches' in window) {
+        // 检查是否有 mediapipe 缓存
+        window.caches.keys().then(function(names) {
+          var hasMediaPipe = names.some(function(n) { return n.indexOf('mediapipe') !== -1 || n.indexOf('googleapis') !== -1 || n.indexOf('jsdelivr') !== -1; });
+          if (!hasMediaPipe) {
+            isFirstLoad = true;
+            var tipEl = document.getElementById('ai-first-load-tip');
+            if (tipEl) tipEl.style.display = 'block';
+          }
+        });
+      } else {
+        // 不支持 Cache API，默认可能是首次
+        var tipEl = document.getElementById('ai-first-load-tip');
+        if (tipEl) tipEl.style.display = 'block';
+      }
+    } catch(e) {
+      var tipEl = document.getElementById('ai-first-load-tip');
+      if (tipEl) tipEl.style.display = 'block';
+    }
+
+    var _aiLoadStart = Date.now();
+
     try {
       console.log('MediaPipe: 开始加载WASM...');
       // 进度：阶段3 - 加载WASM运行时
-      window._updateAILoadingProgress && window._updateAILoadingProgress(50, '加载AI推理引擎(WASM)...');
+      var elapsedSec = ((Date.now() - _aiLoadStart) / 1000).toFixed(0);
+      window._updateAILoadingProgress && window._updateAILoadingProgress(50, '加载AI推理引擎(WASM)... ' + elapsedSec + 's');
       const vision = await window.FilesetResolver.forVisionTasks(
         'https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm'
       );
@@ -1668,9 +1694,24 @@
       }
       if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: MediaPipe 468点3D面部关键点 + EAR几何计算 (已加载)';
       console.log('MediaPipe Face Landmarker 初始化成功');
+      // 计算加载耗时
+      var totalLoadTime = ((Date.now() - _aiLoadStart) / 1000).toFixed(1);
+      var isFast = parseFloat(totalLoadTime) < 3; // 3秒内视为已缓存
+      var doneMsg = isFast
+        ? 'AI模型就绪 (缓存加载 ' + totalLoadTime + 's)'
+        : 'AI模型加载完成，已自动缓存 (' + totalLoadTime + 's)';
       // 进度：完成！启用监测按钮
-      window._updateAILoadingProgress && window._updateAILoadingProgress(100, 'AI模型加载完成，可以开始监测');
+      window._updateAILoadingProgress && window._updateAILoadingProgress(100, doneMsg);
       window._enableStartButton && window._enableStartButton(true);
+      // 隐藏首次加载提示
+      var tipEl = document.getElementById('ai-first-load-tip');
+      if (tipEl) tipEl.style.display = 'none';
+      if (!isFast) {
+        // 首次加载完成，提示下次会更快
+        setTimeout(function() {
+          showAlert('AI模型已缓存，下次打开将秒开 (' + totalLoadTime + 's)', 'info', '&#x26A1;');
+        }, 500);
+      }
       // 如果正在监测中，更新状态提示为AI模式
       if (appState && appState.monitorActive) {
         updateMonitorStatus('face', 'good', '画面分析: AI面部检测运行中');
