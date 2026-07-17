@@ -5775,9 +5775,21 @@
   function startFreeTimer() {
     if (isPro()) return;
     var today = _getTodayStrUTC8();
+
+    // 先从 localStorage 恢复已用时间（防止刷新后丢失）
+    var savedUsed = 0;
+    try {
+      var saved = localStorage.getItem('eyeguard_free_' + today);
+      if (saved) savedUsed = parseFloat(saved) || 0;
+    } catch(e) {}
+
     if (appState.freeMinutesDate !== today) {
-      appState.freeMinutesUsedToday = 0;
+      // 新的一天，重置（但如果有 localStorage 记录就用它）
+      appState.freeMinutesUsedToday = savedUsed;
       appState.freeMinutesDate = today;
+    } else if (savedUsed > appState.freeMinutesUsedToday) {
+      // localStorage 记录比 appState 更大（说明上次页面刷新前已保存），用 localStorage 的
+      appState.freeMinutesUsedToday = savedUsed;
     }
 
     // 联网查询服务器剩余时间（服务器为准，防止本地篡改）
@@ -5785,8 +5797,8 @@
       // 以服务器记录的已用时间为准（服务器精确到0.1分钟）
       // 如果联网失败(-1)，使用本地记录但标记为离线模式（降级，但仍可用）
       if (serverUsedMinutes < 0) {
-        // 联网失败，使用本地 localStorage 记录
-        var localUsed = appState.freeMinutesUsedToday || 0;
+        // 联网失败，使用本地记录（优先 localStorage，再 appState）
+        var localUsed = Math.max(savedUsed, appState.freeMinutesUsedToday || 0);
         _freeSecondsRemaining = Math.max(0, appState.freeDailyLimit * 60 - localUsed * 60);
         console.warn('[免费试用] 联网查询失败，使用本地记录: 已用 ' + localUsed + ' 分钟');
         // 不阻止监测，但标记离线模式
@@ -5817,6 +5829,10 @@
         _pendingReportSeconds++;
         appState.freeMinutesUsedToday = Math.ceil((totalLimitSec - _freeSecondsRemaining) / 60);
         updateFreeTimerDisplay();
+        // 立即保存到 localStorage（每次刷新都能恢复，防刷漏洞）
+        try {
+          localStorage.setItem('eyeguard_free_' + today, String(appState.freeMinutesUsedToday));
+        } catch(e) {}
         dbPut('settings', { key: 'freeTimeUsage', value: { date: today, minutes: appState.freeMinutesUsedToday } });
 
         // 每累计60秒，向服务器上报1分钟
@@ -6071,6 +6087,11 @@ function isPro() {
       showAlert('当前无网络连接，请检查网络后重试', 'error', '&#x1F6AB;');
       return;
     }
+
+    // 显示"正在启动"状态
+    updateMonitorStatus('face', 'warn', '画面分析: 正在请求摄像头权限...');
+    var startBtn = document.getElementById('btn-start-monitor');
+    if (startBtn) { startBtn.textContent = '启动中...'; startBtn.style.pointerEvents = 'none'; startBtn.style.opacity = '0.6'; }
     const dev = appState.selectedMonitorDevice || 'laptop';
     if (!appState.devices[dev]) { showAlert('该设备已禁用', 'warn', '&#x26A0;'); return; }
     const def = DEVICE_DEFS[dev];
@@ -6110,27 +6131,41 @@ function isPro() {
       } catch(e) {}
       const video = document.getElementById('monitor-video');
       video.srcObject = stream;
-      // 移动端必须显式调用 play()
-      try { await video.play(); } catch(playErr) { console.warn('Video play error:', playErr); }
       video.style.display = 'block';
+      video.muted = true; // 确保静音（自动播放策略）
+      video.playsInline = true; // 移动端内联播放
       var phEl = document.getElementById('monitor-placeholder'); if (phEl) phEl.style.display = 'none';
       var lbEl = document.getElementById('monitor-live-badge'); if (lbEl) lbEl.style.display = 'block';
       var slEl = document.getElementById('monitor-scan-line'); if (slEl) slEl.style.display = 'block';
 
+      updateMonitorStatus('face', 'warn', '画面分析: 等待摄像头画面...');
+
+      // 等待视频真正可以播放（readyState >= 2 = HAVE_CURRENT_DATA）
+      await new Promise(function(resolve) {
+        if (video.readyState >= 2) { resolve(); return; }
+        video.onloadeddata = function() { resolve(); };
+        // 超时 10 秒兜底
+        setTimeout(resolve, 10000);
+      });
+
+      try { await video.play(); } catch(playErr) {
+        console.warn('Video play error:', playErr);
+        // 自动播放被拒绝，尝试 muted play
+        video.muted = true;
+        try { await video.play(); } catch(e2) {
+          showAlert('无法播放摄像头画面，请检查浏览器权限设置', 'error', '📷');
+          return;
+        }
+      }
+
       var canvasEl = document.getElementById('monitor-overlay-canvas');
       monitorCanvasCtx = canvasEl ? canvasEl.getContext('2d') : null;
       const canvas = document.getElementById('monitor-overlay-canvas');
-      // 等待视频元数据加载完成后再设置canvas尺寸（移动端尤其重要）
-      if (video.readyState >= 1) {
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-      } else {
-        canvas.width = 640; canvas.height = 480;
-        video.onloadedmetadata = function() {
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 480;
-        };
-      }
+      // 使用视频实际尺寸（已等待 loadeddata，videoWidth/videoHeight 有效）
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.style.width = video.videoWidth ? (video.videoWidth + 'px') : '640px';
+      canvas.style.height = video.videoHeight ? (video.videoHeight + 'px') : '480px';
 
       appState.monitorActive = true;
       appState.connectedDevices[dev] = true;
