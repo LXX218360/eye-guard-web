@@ -1623,34 +1623,22 @@
 
       // 检测是否为 file:// 协议，若是则用 base64 内嵌模型绕过 CORS
       let modelPath = 'face_landmarker.task';
-      if (location.protocol === 'file:' || location.protocol === 'https:') {
-        if (!window._faceLandmarkerModelBase64 && !window._modelLoadAttempted) {
-          window._modelLoadAttempted = true;
-          try {
-            console.log('MediaPipe: 尝试fetch本地模型文件...');
-            const resp = await fetch('face_landmarker.task');
-            if (resp.ok) {
-              const buf = await resp.arrayBuffer();
-              const bytes = new Uint8Array(buf);
-              let binary = '';
-              for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-              window._faceLandmarkerModelBase64 = btoa(binary);
-              console.log('MediaPipe: 模型文件fetch成功，已转base64');
-            }
-          } catch(fetchErr) {
-            console.warn('MediaPipe: fetch模型文件失败:', fetchErr.message);
-          }
-        }
+      if (location.protocol === 'file:') {
+        // file:// 协议下用 base64 内嵌模型
         if (window._faceLandmarkerModelBase64) {
-          console.log('MediaPipe: 使用base64模型创建Blob URL');
+          console.log('MediaPipe: 使用base64模型创建Blob URL (file://)');
           const binaryStr = atob(window._faceLandmarkerModelBase64);
           const bytes = new Uint8Array(binaryStr.length);
           for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
           const blob = new Blob([bytes], { type: 'application/octet-stream' });
           modelPath = URL.createObjectURL(blob);
-        } else if (location.protocol === 'file:') {
+        } else {
           console.warn('MediaPipe: file://协议且无内嵌模型，将使用像素分析降级');
         }
+      } else {
+        // https/http 协议：直接用 MediaPipe 官方 CDN 模型（无需 4.78MB base64）
+        modelPath = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+        console.log('MediaPipe: 使用官方CDN模型');
       }
 
       // 先尝试GPU，失败后降级CPU（关闭不需要的blendshapes和transformation计算以提升性能）
