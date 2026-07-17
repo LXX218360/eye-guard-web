@@ -13,6 +13,7 @@ function fetchSigningKey() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
   }).then(function(r) {
+    if (!r.ok) throw new Error('/api/pubkey ' + r.status);
     var ct = r.headers.get('content-type') || '';
     if (ct.indexOf('text/html') !== -1) throw new Error('API不可用');
     return r.json();
@@ -23,7 +24,9 @@ function fetchSigningKey() {
     }
     window._signingKey = 'offline';
     return 'offline';
-  }).catch(function() {
+  }).catch(function(err) {
+    // /api/pubkey 不存在（后端未升级）时，直接进入离线模式（不阻塞其他API）
+    console.warn('[HMAC] 获取签名密钥失败，进入离线模式:', err.message || err);
     window._signingKey = 'offline';
     return 'offline';
   });
@@ -134,9 +137,19 @@ function safeApiFetch(url, options) {
   if (!fetchOpts.headers['Content-Type']) {
     fetchOpts.headers['Content-Type'] = 'application/json';
   }
-  return fetchSigningKey().then(function() {
+  // 先尝试获取签名密钥（如果失败则跳过签名验证，直接发请求）
+  return fetchSigningKey().then(function(key) {
+    if (key === 'offline') {
+      // 签名密钥获取失败（后端未升级或CORS问题），直接发请求，跳过签名验证
+      return fetch(url, fetchOpts).then(function(r) {
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('text/html') !== -1) throw new Error('API不可用');
+        return r.json();
+      });
+    }
     return fetch(url, fetchOpts);
   }).then(function(r) {
+    // key !== 'offline' 时才需要检查 content-type（上面的分支已处理）
     var ct = r.headers.get('content-type') || '';
     if (ct.indexOf('text/html') !== -1) throw new Error('API不可用');
     return r.json();
