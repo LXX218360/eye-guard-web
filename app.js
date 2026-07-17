@@ -1696,11 +1696,11 @@
       } else {
         // https/http 协议：多 CDN 回退加载模型
         var modelUrls = [
-          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-          'https://cdn.jsdelivr.net/gh/nicolo-ribaudo/mediapipe-models@main/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+          'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web/face_landmarker.task',
+          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
         ];
         modelPath = await _loadModelWithFallback(modelUrls);
-        console.log('MediaPipe: 模型加载完成，来源: ' + (modelPath || 'unknown'));
+        console.log('MediaPipe: 模型加载完成，来源: ' + (modelPath ? modelPath.substring(0,60) : 'unknown'));
       }
 
       // 先尝试GPU，失败后降级CPU（关闭不需要的blendshapes和transformation计算以提升性能）
