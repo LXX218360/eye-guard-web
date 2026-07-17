@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="护眼精灵 - AI智能护眼助手，实时监测用眼距离和疲劳状态">
+<meta name="theme-color" content="#0f172a">
+<title>护眼精灵 - 桌面用眼健康智能提醒终端</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script>// 尝试加载外部 base64 模型文件（与HTML同目录）
+    // 若失败则在 initFaceLandmarker 中尝试 fetch 本地 .task 文件
+    window._faceLandmarkerModelBase64 = null;
+    window._modelLoadAttempted = false;</script>
+<script>// 使用动态import加载MediaPipe，避免ES module作用域隔离问题
+    window._mediapipeLoading = false;
+    window._mediapipeReady = false;
+    window._mediapipePreinit = false; // 预初始化标志
+    window.FaceLandmarker = null;
+    window.FilesetResolver = null;
+
+    async function loadMediaPipe() {
+      if (window._mediapipeLoading || window._mediapipeReady) return;
+      window._mediapipeLoading = true;
+      // 更新进度条：阶段1 - 加载JS库
+      window._updateAILoadingProgress && window._updateAILoadingProgress(10, '加载AI核心库...');
+      try {
+        const mod = await import('https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs');
+        window.FaceLandmarker = mod.FaceLandmarker;
+        window.FilesetResolver = mod.FilesetResolver;
+        window._mediapipeReady = true;
+        // 更新进度条：阶段2 - JS库加载完成，准备加载模型
+        window._updateAILoadingProgress && window._updateAILoadingProgress(40, 'AI核心库已加载，正在初始化模型...');
+        console.log('MediaPipe tasks-vision loaded successfully');
+        // 立即后台预初始化FaceLandmarker
+        if (typeof initFaceLandmarker === 'function' && !window.faceLandmarker && !window._mediapipePreinit) {
+          window._mediapipePreinit = true;
+          setTimeout(function() {
+            initFaceLandmarker();
+          }, 500);
+        }
+      } catch(err) {
+        console.warn('MediaPipe load failed, will use pixel fallback:', err.message);
+        window._updateAILoadingProgress && window._updateAILoadingProgress(0, 'AI核心库加载失败，5秒后重试...');
+        setTimeout(loadMediaPipe, 5000);
+      } finally {
+        window._mediapipeLoading = false;
+      }
+    }
+    // 页面加载完成后立即开始加载MediaPipe
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      loadMediaPipe();
+    } else {
+      window.addEventListener('DOMContentLoaded', loadMediaPipe);
+    }</script>
+<script></script>
+<script>/* ========== 护眼精灵 - 只读保护层（不可混淆区域） ========== */
+(function(){
+  'use strict';
+  /* 禁用右键菜单 */
+  document.addEventListener('contextmenu',function(e){e.preventDefault();return false;},true);
+  /* 禁用文本选择和拖拽 */
+  document.addEventListener('selectstart',function(e){e.preventDefault();return false;},true);
+  document.addEventListener('dragstart',function(e){e.preventDefault();return false;},true);
+  /* 屏蔽开发者工具快捷键 */
+  document.addEventListener('keydown',function(e){
+    var k=e.key||e.keyCode;
+    if(k==='F12'||k===123){e.preventDefault();e.stopPropagation();return false;}
+    if(e.ctrlKey&&e.shiftKey&&(k==='I'||k==='J'||k==='C'||k===73||k===74||k===67)){e.preventDefault();e.stopPropagation();return false;}
+    if(e.ctrlKey&&(k==='U'||k===85)){e.preventDefault();e.stopPropagation();return false;}
+  },true);
+  /* 开发者工具检测 */
+  var _dt=false,_cc=0;
+  function _chk(){
+    _cc++;
+    var w=window.outerWidth-window.innerWidth,h=window.outerHeight-window.innerHeight;
+    var d=(w>160||h>160);
+    if(d&&!_dt){_dt=true;try{console.clear();console.log('%c','font-size:0;padding:9999px');}catch(e){}}
+    else if(!d){_dt=false;}
+  }
+  setInterval(_chk,2000);
+})();</script>
+</head>
+<body>
+
+
+
+
+
+  <!-- Mobile Header -->
+  <div class="mobile-header" id="mobile-header">
+    <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="菜单">&#x2630;</button>
+    <div class="mobile-title">护眼精灵</div>
+    <div class="mobile-status" id="mobile-status-dot"></div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title">确认操作</div>
+      <div class="modal-desc" id="modal-desc">确定要执行此操作吗？</div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" id="modal-cancel">取消</button>
+        <button class="modal-btn modal-btn-confirm" id="modal-confirm">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome -->
+  <div class="welcome-overlay" id="welcome-overlay">
+    <div class="welcome-card">
+      <div class="welcome-icon">&#x1F441;</div>
+      <div class="welcome-title">欢迎使用护眼精灵</div>
+      <div class="welcome-desc">
+        智能用眼健康监测终端，守护您的视力健康。<br>
+        请先完成基础设置，开始您的护眼之旅。
+      </div>
+      <div class="welcome-form">
+        <div class="form-group">
+          <label class="form-label">您的昵称</label>
+          <input type="text" class="form-input" id="welcome-nickname" placeholder="请输入昵称" value="">
+        </div>
+        <div class="form-group">
+          <label class="form-label">您的角色</label>
+          <div class="role-selector" id="welcome-role-selector">
+            <button class="role-btn active" data-role="student">学生</button>
+            <button class="role-btn" data-role="office">上班族</button>
+            <button class="role-btn" data-role="parent">家长</button>
+            <button class="role-btn" data-role="other">其他</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">头像颜色</label>
+          <div class="color-picker-grid" id="welcome-color-picker">
+            <div class="color-option selected" data-color="linear-gradient(135deg,#c8874d,#5a8f6a)" style="background:linear-gradient(135deg,#c8874d,#5a8f6a)"></div>
+            <div class="color-option" data-color="linear-gradient(135deg,#6366f1,#8b5cf6)" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)"></div>
+            <div class="color-option" data-color="linear-gradient(135deg,#ec4899,#f43f5e)" style="background:linear-gradient(135deg,#ec4899,#f43f5e)"></div>
+            <div class="color-option" data-color="linear-gradient(135deg,#14b8a6,#06b6d4)" style="background:linear-gradient(135deg,#14b8a6,#06b6d4)"></div>
+            <div class="color-option" data-color="linear-gradient(135deg,#f59e0b,#f97316)" style="background:linear-gradient(135deg,#f59e0b,#f97316)"></div>
+            <div class="color-option" data-color="linear-gradient(135deg,#3b82f6,#2dd4bf)" style="background:linear-gradient(135deg,#3b82f6,#2dd4bf)"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">绑定手机号（必填，用于激活会员）</label>
+          <input type="tel" class="form-input" id="welcome-phone" placeholder="请输入11位手机号" maxlength="11" value="">
+          <div id="welcome-phone-error" style="color:var(--danger);font-size:0.75rem;margin-top:4px;min-height:1em;"></div>
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%;padding:14px;" id="btn-complete-welcome">开始使用</button>
+    </div>
+  </div>
+
+  <!-- User Edit Panel -->
+  <div class="user-edit-backdrop" id="user-edit-backdrop"></div>
+  <div class="user-edit-panel" id="user-edit-panel">
+    <div class="user-edit-panel-title">
+      个人设置
+      <button class="user-edit-close" id="btn-close-user-edit">&times;</button>
+    </div>
+    <div class="user-avatar-picker">
+      <div class="user-avatar-large" id="edit-avatar-preview" style="background:linear-gradient(135deg,#c8874d,#5a8f6a)" onclick="document.getElementById('avatar-file-input').click()">
+        <span id="edit-avatar-text">用户</span>
+        <img id="edit-avatar-img" style="display:none;" alt="头像">
+        <div class="avatar-camera-icon">&#x1F4F7;</div>
+      </div>
+      <input type="file" id="avatar-file-input" accept="image/*" style="display:none;">
+      <div style="flex:1;">
+        <div class="form-label" style="margin-bottom:8px;">头像颜色</div>
+        <div class="color-picker-grid" id="edit-color-picker">
+          <div class="color-option selected" data-color="linear-gradient(135deg,#c8874d,#5a8f6a)" style="background:linear-gradient(135deg,#c8874d,#5a8f6a)"></div>
+          <div class="color-option" data-color="linear-gradient(135deg,#6366f1,#8b5cf6)" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)"></div>
+          <div class="color-option" data-color="linear-gradient(135deg,#ec4899,#f43f5e)" style="background:linear-gradient(135deg,#ec4899,#f43f5e)"></div>
+          <div class="color-option" data-color="linear-gradient(135deg,#14b8a6,#06b6d4)" style="background:linear-gradient(135deg,#14b8a6,#06b6d4)"></div>
+          <div class="color-option" data-color="linear-gradient(135deg,#f59e0b,#f97316)" style="background:linear-gradient(135deg,#f59e0b,#f97316)"></div>
+          <div class="color-option" data-color="linear-gradient(135deg,#3b82f6,#2dd4bf)" style="background:linear-gradient(135deg,#3b82f6,#2dd4bf)"></div>
+        </div>
+        <div class="avatar-upload-actions">
+          <button onclick="document.getElementById('avatar-file-input').click()">上传图片</button>
+          <button id="btn-remove-avatar" onclick="removeAvatarImage()" style="display:none;">恢复默认</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">昵称</label>
+      <input type="text" class="form-input" id="edit-nickname" placeholder="请输入昵称" value="">
+    </div>
+    <div class="form-group">
+      <label class="form-label">角色</label>
+      <div class="role-selector" id="edit-role-selector">
+        <button class="role-btn active" data-role="student">学生</button>
+        <button class="role-btn" data-role="office">上班族</button>
+        <button class="role-btn" data-role="parent">家长</button>
+        <button class="role-btn" data-role="other">其他</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px;">
+      <label class="form-label">绑定手机号（如需修改请清除数据重新设置）</label>
+      <input type="tel" class="form-input" id="edit-phone" placeholder="11位手机号" maxlength="11" value="" readonly style="background:var(--bg3);opacity:0.8;cursor:not-allowed;">
+      <div id="edit-phone-error" style="color:var(--danger);font-size:0.75rem;margin-top:4px;min-height:1em;"></div>
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:20px;" id="btn-save-user-profile">保存设置</button>
+  </div>
+
+  <!-- Toast -->
+  <div class="alert-toast" id="alert-toast">
+    <span class="alert-toast-icon" id="alert-toast-icon"></span>
+    <span id="alert-toast-msg"></span>
+    <span class="alert-toast-close" id="alert-toast-close">&times;</span>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">&#x1F441;</div>
+      <div>
+        <div class="logo-text">护眼精灵</div>
+        <div class="logo-sub">AI智能用眼健康终端</div>
+      </div>
+    </div>
+    <nav class="nav-menu">
+      <div class="nav-item active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        数据概览
+      </div>
+      <div class="nav-item" data-page="monitor">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m4.22-10.22l4.24-4.24M6.34 6.34L2.1 2.1m17.8 17.8l-4.24-4.24M6.34 17.66l-4.24 4.24M23 12h-6m-6 0H1m20.24-4.24l-4.24 4.24M6.34 6.34l-4.24-4.24"/></svg>
+        实时监测
+      </div>
+      <div class="nav-item" data-page="stats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        数据统计
+      </div>
+      <div class="nav-item" data-page="report">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        健康报告
+      </div>
+      <div class="nav-item" data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        提醒设置
+      </div>
+    </nav>
+    <div class="eye-mode-switch">
+      <div class="eye-mode-label">
+        <span style="font-size:18px">&#x1F33F;</span>
+        <span id="eye-mode-text">护眼模式</span>
+      </div>
+      <div class="eye-mode-toggle" id="eye-mode-toggle"></div>
+    </div>
+    <div class="pro-upgrade-sidebar" id="pro-upgrade-sidebar" onclick="showProModal()">
+      <div class="pro-badge">PRO</div>
+      <div class="pro-upgrade-text">升级解锁全部功能</div>
+    </div>
+    <div class="user-profile" id="user-profile-area">
+      <div class="user-avatar" id="sidebar-avatar">用户</div>
+      <div class="user-info">
+        <div class="user-name" id="sidebar-user-name">用户</div>
+        <div class="user-role" id="sidebar-user-role">未设置</div>
+      </div>
+      <div class="user-edit-hint">编辑 &#x270E;</div>
+    </div>
+    <div style="padding:8px 12px;margin:0 12px 8px;background:rgba(0,180,120,0.08);border-radius:8px;border:1px solid rgba(0,180,120,0.15);cursor:pointer;" onclick="showPrivacyModal()" title="点击查看隐私保护详情">
+      <div style="font-size:0.68rem;color:rgba(0,180,120,0.85);display:flex;align-items:center;gap:4px;">
+        &#x1F512; 您的监测数据仅存储在本设备，任何人都无法查看
+      </div>
+    </div>
+      <button class="mobile-nav-close" id="mobile-nav-close">&#x2715; 关闭</button>
+  </aside>
+
+  <!-- Pro Modal -->
+  <div class="modal-overlay" id="pro-modal" style="display:none">
+    <div class="modal-content" style="max-width:500px; padding:0; overflow:hidden; max-height:85vh; display:flex; flex-direction:column;">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#0a1628,#162040); padding:24px 20px 20px; text-align:center; position:relative;flex-shrink:0;">
+        <button onclick="hideProModal()" style="position:absolute;top:10px;right:14px;background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;">&times;</button>
+        <div onclick="onProBadgeClick()" style="display:inline-block;background:linear-gradient(135deg,#ffd700,#ff8c00);color:#fff;font-size:11px;font-weight:800;padding:2px 10px;border-radius:4px;letter-spacing:0.15em;margin-bottom:8px;cursor:default;">PRO</div>
+        <h2 style="font-size:1.4rem;color:#fff;margin-bottom:4px;">升级护眼精灵 Pro</h2>
+        <p style="color:var(--muted);font-size:0.8rem;">解锁全部高级功能，守护你的眼睛健康</p>
+        <!-- Steps indicator -->
+        <div id="pro-steps-indicator" style="display:flex;justify-content:center;gap:6px;margin-top:14px;">
+          <div class="pro-step-dot" id="pro-step-dot-1" style="width:8px;height:8px;border-radius:50%;background:#ffd700;transition:all 0.3s;"></div>
+          <div class="pro-step-dot" id="pro-step-dot-2" style="width:8px;height:8px;border-radius:50%;background:var(--muted);opacity:0.4;transition:all 0.3s;"></div>
+          <div class="pro-step-dot" id="pro-step-dot-3" style="width:8px;height:8px;border-radius:50%;background:var(--muted);opacity:0.4;transition:all 0.3s;"></div>
+        </div>
+      </div>
+      <div style="padding:20px; overflow-y:auto; flex:1;">
+
+        <!-- STEP 1: Add QQ -->
+        <div id="pro-step-1">
+          <div style="text-align:center;padding:10px 0;">
+            <div style="font-size:0.9rem;font-weight:600;color:var(--ink);margin-bottom:16px;">&#x26A0; 第一步：先添加创作者QQ</div>
+            <div style="background:linear-gradient(135deg,#12b7f5,#0d8ecf);border-radius:12px;padding:20px;margin-bottom:16px;">
+              <div style="font-size:0.8rem;color:rgba(255,255,255,0.7);margin-bottom:8px;">创作者QQ号（请先添加好友）</div>
+              <div style="font-size:1.8rem;font-weight:800;color:#fff;letter-spacing:0.1em;font-family:monospace;">2183604684</div>
+              <button onclick="copyText('2183604684')" style="margin-top:10px;padding:6px 16px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:0.8rem;cursor:pointer;">&#x1F4CB; 复制QQ号</button>
+            </div>
+            <div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:16px;text-align:left;">
+              <div style="font-size:0.8rem;color:var(--ink);font-weight:600;margin-bottom:6px;">&#x1F4CB; 购买流程：</div>
+              <div style="font-size:0.75rem;color:var(--muted);line-height:1.8;">
+                <div>1. 添加上方QQ号为好友</div>
+                <div>2. 选择套餐并完成支付</div>
+                <div>3. 创作者确认收款后发送激活码</div>
+                <div>4. 输入激活码完成激活</div>
+              </div>
+            </div>
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;text-align:left;margin-bottom:16px;" id="pro-qq-check-label">
+              <input type="checkbox" id="pro-qq-check" style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);">
+              <span style="font-size:0.8rem;color:var(--ink);">我已添加创作者QQ号 <b>2183604684</b> 为好友</span>
+            </label>
+            <button id="btn-step1-next" onclick="goToStep2()" style="width:100%;padding:12px;background:var(--bg3);border:1px solid var(--rule);border-radius:8px;color:var(--muted);font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.3s;" disabled>下一步：选择套餐并支付</button>
+          </div>
+        </div>
+
+        <!-- STEP 2: Select plan & Pay -->
+        <div id="pro-step-2" style="display:none;">
+          <div style="text-align:center;margin-bottom:12px;">
+            <div style="font-size:0.85rem;font-weight:600;color:var(--ink);">选择套餐</div>
+          </div>
+          <div class="plan-cards" style="margin-bottom:16px;">
+            <div class="plan-card selected" data-plan="week" onclick="selectPlan('week')">
+              <div class="plan-price">2.88</div>
+              <div class="plan-period">周卡</div>
+              <div class="plan-desc">7天全功能</div>
+            </div>
+            <div class="plan-card" data-plan="month" onclick="selectPlan('month')">
+              <div class="plan-tag">热门</div>
+              <div class="plan-price">8.88</div>
+              <div class="plan-period">月卡</div>
+              <div class="plan-desc">30天全功能</div>
+            </div>
+            <div class="plan-card" data-plan="year" onclick="selectPlan('year')">
+              <div class="plan-tag">省17%</div>
+              <div class="plan-price">88.8</div>
+              <div class="plan-period">年卡</div>
+              <div class="plan-desc">365天全功能</div>
+            </div>
+          </div>
+          <div style="text-align:center;margin-bottom:10px;">
+            <div style="font-size:0.85rem;font-weight:600;color:var(--ink);" id="pro-price-label">Pro 周卡 2.88元</div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">截图发给创作者QQ确认支付</div>
+          </div>
+          <div style="display:flex;justify-content:center;gap:8px;margin-bottom:10px;">
+            <button id="pay-tab-wechat" onclick="switchPayMethod('wechat')" style="padding:6px 16px;border-radius:8px;border:2px solid #07c160;background:#07c160;color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;">微信支付</button>
+            <button id="pay-tab-alipay" onclick="switchPayMethod('alipay')" style="padding:6px 16px;border-radius:8px;border:2px solid var(--rule);background:transparent;color:var(--ink);font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;">支付宝</button>
+          </div>
+          <div style="text-align:center;">
+            <div id="pro-qrcode-wrap" style="display:inline-block;background:var(--bg);border:2px solid var(--rule);border-radius:12px;padding:12px;">
+              <img id="pro-qrcode-img" style="width:140px;height:140px;display:none;border-radius:8px;" alt="收款码">
+              <div id="pro-qrcode-placeholder" style="width:140px;height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:0.75rem;">
+                <div style="font-size:2rem;margin-bottom:4px;">&#x1F4B3;</div>
+                <div>加载中...</div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;">
+            <button onclick="goToStep1()" style="flex:1;padding:10px;background:var(--bg3);border:1px solid var(--rule);border-radius:8px;color:var(--muted);font-size:0.85rem;cursor:pointer;">返回</button>
+            <button onclick="goToStep3()" style="flex:2;padding:10px;background:linear-gradient(135deg,#00d4aa,#0099ff);color:#fff;border:none;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;">已付款，输入激活码 &#x2192;</button>
+          </div>
+        </div>
+
+        <!-- STEP 3: Enter activation code -->
+        <div id="pro-step-3" style="display:none;">
+          <div style="text-align:center;margin-bottom:16px;">
+            <div style="font-size:0.9rem;font-weight:600;color:var(--ink);margin-bottom:6px;">&#x1F511; 输入激活码</div>
+            <div style="font-size:0.75rem;color:var(--muted);">创作者QQ确认收款后会发送激活码</div>
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:0.75rem;color:var(--accent);margin-bottom:4px;">&#x1F4F1; 使用已绑定的手机号</div>
+            <input type="tel" id="pro-phone-input" placeholder="使用绑定的手机号" maxlength="11" readonly style="width:100%;background:var(--bg3);border:1px solid var(--rule);border-radius:8px;padding:10px 14px;color:var(--ink);font-size:0.9rem;outline:none;box-sizing:border-box;">
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <input type="text" id="pro-activate-input" placeholder="输入激活码 (EYE-XXXX-XXXX-XXXX)" style="flex:1;background:var(--bg3);border:1px solid var(--rule);border-radius:8px;padding:10px 14px;color:var(--ink);font-size:0.9rem;outline:none;" onkeydown="if(event.key==='Enter')activatePro()">
+            <button onclick="activatePro()" style="padding:10px 16px;background:linear-gradient(135deg,#00d4aa,#0099ff);color:#fff;border:none;border-radius:8px;font-size:0.9rem;font-weight:600;cursor:pointer;white-space:nowrap;">激活</button>
+          </div>
+          <div id="pro-activate-msg" style="font-size:0.8rem;color:var(--muted);text-align:center;min-height:1.2em;"></div>
+          <div style="text-align:center;margin-top:16px;">
+            <button onclick="goToStep2()" style="padding:6px 12px;background:none;border:none;color:var(--muted);font-size:0.8rem;cursor:pointer;text-decoration:underline;">&#x2190; 返回查看收款码</button>
+          </div>
+        </div>
+
+        <!-- Activated state -->
+        <div id="pro-activated-area" style="display:none;text-align:center;padding:16px 0;">
+          <div style="font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,#ffd700,#ff8c00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">&#x2714; Pro 会员已激活</div>
+          <div style="font-size:0.82rem;color:var(--ink);margin-top:8px;line-height:1.6;" id="pro-activated-info"></div>
+          <div style="margin-top:16px;padding:12px;background:var(--bg2);border-radius:10px;text-align:left;">
+            <div style="font-size:0.78rem;font-weight:700;color:var(--accent);margin-bottom:8px;">&#x1F3AF; Pro 会员权益</div>
+            <div style="font-size:0.75rem;color:var(--muted);line-height:2;">
+              <div>&#x2705; 无限制实时面部监测</div>
+              <div>&#x2705; 实时距离 & 姿势 & 眨眼预警</div>
+              <div>&#x2705; 数据统计与趋势分析</div>
+              <div>&#x2705; AI健康评估报告</div>
+              <div>&#x2705; 护眼模式 & 暗色主题</div>
+              <div>&#x2705; 个性化设置保存</div>
+              <div>&#x2705; 无广告、无时长限制</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;">
+            <button onclick="openRenewPanel()" style="padding:8px 18px;background:linear-gradient(135deg,#ffd700,#ff8c00);color:#fff;border:none;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer;">&#x2B50; 续费/升级</button>
+            <button onclick="hideProModal()" style="padding:8px 18px;background:var(--bg3);color:var(--muted);border:1px solid var(--rule);border-radius:8px;font-size:0.8rem;cursor:pointer;">关闭</button>
+          </div>
+          <div style="margin-top:10px;font-size:0.7rem;color:var(--muted);">如有问题请联系创作者QQ: 2183604684</div>
+        </div>
+
+        <!-- API Config (hidden by default, click PRO badge 5 times to show) -->
+        <div id="pro-api-config" style="display:none;margin-top:12px;padding:12px;background:var(--bg2);border-radius:8px;">
+          <div style="font-size:0.8rem;font-weight:600;margin-bottom:8px;">&#x1F310; 验证服务器设置</div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="pro-api-url-input" placeholder="http://localhost:5000" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--rule);background:var(--bg3);color:var(--ink);font-size:0.8rem;">
+            <button onclick="saveUserApiUrl()" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:0.8rem;cursor:pointer;">保存</button>
+          </div>
+          <div id="pro-api-status" style="margin-top:4px;font-size:0.75rem;color:var(--muted);"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <!-- Free Timer -->
+  <div class="pro-timer-badge" id="pro-timer-badge" style="display:none">
+    <div class="timer-text">今日试用剩余 <strong id="pro-timer-remaining">60:00</strong></div>
+    <button class="timer-upgrade" onclick="showProModal()">升级 Pro</button>
+  </div>
+
+  <!-- Mobile Pro Entry (visible only on mobile) -->
+  <div id="mobile-pro-entry" style="display:none;position:fixed;bottom:68px;right:12px;z-index:999;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff8c00);box-shadow:0 2px 12px rgba(255,215,0,0.4);cursor:pointer;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;letter-spacing:0.05em;" onclick="showProModal()">PRO</div>
+
+  <!-- Privacy Notice (first time) -->
+  <div class="modal-overlay" id="privacy-modal" style="display:none;z-index:10000;">
+    <div class="modal-content" style="max-width:520px;padding:0;overflow:hidden;max-height:85vh;display:flex;flex-direction:column;">
+      <div style="background:linear-gradient(135deg,#0a1628,#162040);padding:24px 20px;text-align:center;flex-shrink:0;">
+        <div style="font-size:2rem;margin-bottom:8px;">🛡️</div>
+        <h2 style="font-size:1.2rem;color:#fff;margin:0 0 8px;">用户协议与隐私政策</h2>
+        <p style="color:var(--muted);font-size:0.8rem;margin:0;">使用本应用前，请仔细阅读以下内容</p>
+      </div>
+      <div style="padding:20px;font-size:0.82rem;color:var(--ink);line-height:1.8;overflow-y:auto;flex:1;">
+        <!-- 快速概览 -->
+        <div style="padding:12px;background:var(--bg2);border-radius:8px;margin-bottom:16px;border-left:3px solid var(--accent);">
+          <div style="font-weight:700;margin-bottom:8px;color:var(--accent);font-size:0.88rem;">📋 快速概览</div>
+          <div style="color:var(--muted);font-size:0.78rem;line-height:1.9;">
+            1. 本应用为<strong style="color:var(--ink);">护眼精灵 Pro</strong> — AI智能用眼健康监测工具<br>
+            2. 所有监测数据<strong style="color:var(--ink);">仅存储在您的设备本地</strong>，不会上传至任何服务器<br>
+            3. 摄像头画面<strong style="color:var(--ink);">实时处理后立即丢弃</strong>，不保存任何图像<br>
+            4. 创作者<strong style="color:var(--ink);">仅能查看您的激活状态</strong>（手机号、激活时间），无法访问任何监测数据<br>
+            5. 仅Pro激活验证时需要联网，其余功能均在本地运行
+          </div>
+        </div>
+
+        <!-- 用户协议 -->
+        <div style="margin-bottom:16px;">
+          <div style="font-weight:700;margin-bottom:8px;font-size:0.88rem;display:flex;align-items:center;gap:6px;">
+            <span style="display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px;"></span>
+            一、用户协议
+          </div>
+          <div style="color:var(--muted);font-size:0.78rem;line-height:1.9;">
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">1.1 服务说明</strong><br>护眼精灵 Pro（以下简称"本应用"）是一款基于AI面部识别技术的用眼健康监测工具，通过摄像头实时检测用户的面部特征，提供用眼距离提醒、姿态纠正、眨眼频率监测、使用时长管理等功能，旨在帮助用户养成良好的用眼习惯。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">1.2 使用资格</strong><br>您须年满14周岁方可使用本应用。未满18周岁的用户应在监护人的指导下使用。使用本应用即表示您已阅读并同意本协议的全部内容。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">1.3 知识产权</strong><br>本应用的全部代码、设计、图形、文字等均受《中华人民共和国著作权法》保护，未经创作者书面许可，不得复制、修改、反编译、分发或以其他方式使用本应用的任何部分。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">1.4 许可授权</strong><br>通过合法渠道获取激活码的用户，获得本应用的非独占、不可转让、不可再许可的使用权。激活码的有效期以激活时约定的套餐为准（如周卡7天、月卡30天、年卡365天），到期后需续费或重新激活。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">1.5 免费试用</strong><br>未激活Pro的用户可免费试用本应用的基础监测功能，每日免费试用时长为40分钟。免费试用仅限个人体验使用，创作者保留随时调整免费试用额度和功能范围的权利。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">1.6 免责声明</strong><br>（a）本应用提供的所有功能和建议仅供健康参考，不构成任何医学诊断或治疗建议。如您有眼部健康问题，请及时就医咨询专业医生。<br>
+            （b）本应用尽最大努力保证功能准确性，但不对因使用本应用而产生的任何直接或间接损失承担责任，包括但不限于因AI识别偏差、设备故障、网络中断等原因造成的影响。<br>
+            （c）创作者不对用户因使用不当（如调整错误校准参数、忽略预警提醒等）导致的任何后果承担责任。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">1.7 用户行为规范</strong><br>用户不得：（a）将激活码转售、出租或赠予他人使用；（b）对本应用进行逆向工程、反编译、反汇编或试图以其他方式获取本应用源代码；（c）利用本应用的漏洞获取不当利益；（d）将本应用用于任何违法违规用途。</p>
+            <p><strong style="color:var(--ink);">1.8 协议更新</strong><br>创作者有权在必要时修改本协议内容。协议更新后，继续使用本应用即视为同意修改后的协议。重大变更将通过应用内公告的方式通知。</p>
+          </div>
+        </div>
+
+        <!-- 隐私政策 -->
+        <div style="margin-bottom:16px;">
+          <div style="font-weight:700;margin-bottom:8px;font-size:0.88rem;display:flex;align-items:center;gap:6px;">
+            <span style="display:inline-block;width:3px;height:14px;background:var(--accent);border-radius:2px;"></span>
+            二、隐私政策
+          </div>
+          <div style="color:var(--muted);font-size:0.78rem;line-height:1.9;">
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">2.1 信息收集范围</strong><br>本应用仅在以下范围内收集和处理用户信息：</p>
+            <div style="padding:8px 12px;background:var(--bg2);border-radius:6px;margin:6px 0 12px;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.76rem;">
+                <tr style="border-bottom:1px solid var(--rule);"><td style="padding:6px 4px;font-weight:600;color:var(--ink);width:35%;vertical-align:top;">设备信息</td><td style="padding:6px 4px;">浏览器类型、屏幕分辨率、时区、硬件信息等（用于生成设备指纹，防止免费试用滥用）</td></tr>
+                <tr style="border-bottom:1px solid var(--rule);"><td style="padding:6px 4px;font-weight:600;color:var(--ink);vertical-align:top;">激活信息</td><td style="padding:6px 4px;">手机号码（用于激活码绑定和会员身份验证）、激活码、激活时间</td></tr>
+                <tr style="border-bottom:1px solid var(--rule);"><td style="padding:6px 4px;font-weight:600;color:var(--ink);vertical-align:top;">使用时长</td><td style="padding:6px 4px;">免费试用用户的每日累计使用分钟数（用于控制免费试用额度）</td></tr>
+                <tr style="border-bottom:1px solid var(--rule);"><td style="padding:6px 4px;font-weight:600;color:var(--ink);vertical-align:top;">本地设置</td><td style="padding:6px 4px;">用户昵称、角色、头像、校准数据、阈值设置等（仅存储在本地设备）</td></tr>
+                <tr><td style="padding:6px 4px;font-weight:600;color:var(--ink);vertical-align:top;">监测数据</td><td style="padding:6px 4px;">面部检测结果、距离估算、眨眼频率、使用时长统计、健康报告等（仅存储在本地设备）</td></tr>
+              </table>
+            </div>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">2.2 数据存储位置</strong><br>
+            <span style="display:inline-block;padding:4px 10px;background:rgba(0,180,120,0.12);color:#00b478;border-radius:4px;font-weight:600;margin-bottom:6px;font-size:0.76rem;">🔒 监测数据 — 仅本地存储</span><br>
+            所有面部检测数据、健康报告、使用统计、校准数据、阈值设置等<strong style="color:var(--ink);">仅保存在您当前设备的浏览器数据库（IndexedDB）中</strong>，不会上传到任何服务器。卸载浏览器或清除浏览器数据将永久删除这些信息。<br><br>
+            <span style="display:inline-block;padding:4px 10px;background:rgba(56,189,248,0.12);color:#38bdf8;border-radius:4px;font-weight:600;margin-bottom:6px;font-size:0.76rem;">🌐 服务器存储 — 仅激活相关信息</span><br>
+            服务器仅存储：激活码记录（套餐类型、绑定手机号、激活时间、到期时间）、免费试用使用分钟数和设备指纹哈希。<strong style="color:var(--ink);">服务器不存储任何监测数据、摄像头画面或面部图像。</strong></p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">2.3 摄像头使用</strong><br>本应用需要使用设备摄像头进行面部检测。摄像头画面由本地AI模型实时处理后<strong style="color:var(--ink);">立即丢弃</strong>，不会保存、截取或上传任何图像到服务器。摄像头仅用于面部特征点检测和姿态分析，不录制视频、不拍摄照片。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">2.4 数据安全</strong><br>（a）您的手机号码在传输过程中使用HTTPS加密协议保护。<br>
+            （b）服务器上的激活记录仅创作者（管理员）可查看，且仅包含手机号、激活时间、套餐类型等激活管理信息。<br>
+            （c）您的监测数据对任何第三方（包括创作者）均不可见、不可访问。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">2.5 用户权利</strong><br>（a）您有权随时在本应用"设置"页面中查看、修改您的个人信息（昵称、头像等）。<br>
+            （b）您有权随时清除浏览器本地数据来删除所有监测数据（此操作不可恢复）。<br>
+            （c）您有权随时停止使用本应用并卸载，所有本地数据将随之删除。<br>
+            （d）您有权要求创作者删除您的激活记录和手机号信息，请通过绑定的联系方式与创作者取得联系。</p>
+            <p style="margin-bottom:8px;"><strong style="color:var(--ink);">2.6 数据共享</strong><br>本应用<strong style="color:var(--ink);">不会向任何第三方共享、出售或交换您的个人信息和监测数据</strong>。仅在以下情形下可能披露必要信息：（a）遵守法律法规或政府主管部门的要求；（b）保护本应用或其他用户的合法权益。</p>
+            <p><strong style="color:var(--ink);">2.7 政策更新</strong><br>本隐私政策可能会不时更新。重大变更将通过应用内弹窗公告的方式通知。继续使用本应用即视为同意更新后的隐私政策。建议您定期查阅本政策以了解最新变更。</p>
+          </div>
+        </div>
+
+        <!-- 联系方式 -->
+        <div style="padding:12px;background:var(--bg2);border-radius:8px;">
+          <div style="font-weight:600;margin-bottom:6px;color:var(--accent);font-size:0.84rem;">📬 联系我们</div>
+          <div style="color:var(--muted);font-size:0.78rem;">如您对本协议或隐私政策有任何疑问、建议或投诉，请通过绑定的手机号联系创作者。</div>
+        </div>
+      </div>
+      <div style="padding:16px 20px;flex-shrink:0;border-top:1px solid var(--rule);">
+        <button onclick="acceptPrivacy()" style="width:100%;padding:12px;background:linear-gradient(135deg,#00d4aa,#0099ff);color:#fff;border:none;border-radius:8px;font-size:0.9rem;font-weight:600;cursor:pointer;">我已阅读并同意以上协议，开始使用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="header">
+      <h1 class="header-title" id="page-title">数据概览</h1>
+      <div class="header-actions">
+        <button class="header-btn" id="header-settings-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          设置
+        </button>
+        <div class="status-badge">
+          <span class="status-dot"></span>
+          <span id="header-device-count">设备在线</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ==================== Page: Dashboard ==================== -->
+      <div class="page active" id="page-dashboard">
+
+        <!-- Device Status -->
+        <div class="device-status-panel">
+          <div class="device-status-panel-title">&#x1F517; 设备连接状态</div>
+          <div class="device-status-grid" id="device-status-grid">
+            <div class="device-status-card" data-device-type="hardware" id="card-hardware">
+              <button class="device-toggle-btn active" data-device-toggle="hardware"></button>
+              <div class="device-status-card-header">
+                <div class="device-status-card-name"><span class="ds-icon">&#x1F4F7;</span><span id="card-hardware-name">硬件终端</span></div>
+                <div class="device-status-indicator disconnected" id="indicator-hardware"><span class="ds-dot"></span>未连接</div>
+              </div>
+              <div class="device-status-card-desc" id="desc-hardware">外接AI摄像头模块，通过USB接入电脑</div>
+              <div class="ds-click-hint">点击枚举USB摄像头连接</div>
+            </div>
+            <div class="device-status-card" data-device-type="laptop" id="card-laptop">
+              <button class="device-toggle-btn active" data-device-toggle="laptop"></button>
+              <div class="device-status-card-header">
+                <div class="device-status-card-name"><span class="ds-icon">&#x1F4BB;</span><span id="card-laptop-name">笔记本摄像头</span></div>
+                <div class="device-status-indicator disconnected" id="indicator-laptop"><span class="ds-dot"></span>未连接</div>
+              </div>
+              <div class="device-status-card-desc" id="desc-laptop">电脑自带摄像头，调用getUserMedia</div>
+              <div class="ds-click-hint">点击授权启用摄像头</div>
+            </div>
+            <div class="device-status-card" data-device-type="phone" id="card-phone">
+              <button class="device-toggle-btn active" data-device-toggle="phone"></button>
+              <div class="device-status-card-header">
+                <div class="device-status-card-name"><span class="ds-icon">&#x1F4F1;</span><span id="card-phone-name">手机</span></div>
+                <div class="device-status-indicator disconnected" id="indicator-phone"><span class="ds-dot"></span>未连接</div>
+              </div>
+              <div class="device-status-card-desc" id="desc-phone">通过蓝牙连接手机，手机摄像头作为辅助监测</div>
+              <div class="ds-click-hint">点击搜索蓝牙手机设备</div>
+            </div>
+            <div class="device-status-card" data-device-type="tablet" id="card-tablet">
+              <button class="device-toggle-btn active" data-device-toggle="tablet"></button>
+              <div class="device-status-card-header">
+                <div class="device-status-card-name"><span class="ds-icon">&#x1F4F1;</span><span id="card-tablet-name">平板</span></div>
+                <div class="device-status-indicator disconnected" id="indicator-tablet"><span class="ds-dot"></span>未连接</div>
+              </div>
+              <div class="device-status-card-desc" id="desc-tablet">通过蓝牙连接平板，平板摄像头作为辅助监测</div>
+              <div class="ds-click-hint">点击搜索蓝牙平板设备</div>
+            </div>
+            <div class="device-status-card" data-device-type="usb-sensor" id="card-usb-sensor">
+              <button class="device-toggle-btn active" data-device-toggle="usb-sensor"></button>
+              <div class="device-status-card-header">
+                <div class="device-status-card-name"><span class="ds-icon">&#x1F4E1;</span><span id="card-usb-sensor-name">USB传感器</span></div>
+                <div class="device-status-indicator disconnected" id="indicator-usb-sensor"><span class="ds-dot"></span>未连接</div>
+              </div>
+              <div class="device-status-card-desc" id="desc-usb-sensor">外接环境光/距离传感器，通过USB接入</div>
+              <div class="ds-click-hint">点击枚举USB串口设备连接</div>
+            </div>
+            <div class="device-status-card" data-device-type="bt-le" id="card-bt-le">
+              <button class="device-toggle-btn active" data-device-toggle="bt-le"></button>
+              <div class="device-status-card-header">
+                <div class="device-status-card-name"><span class="ds-icon">&#x1F535;</span><span id="card-bt-le-name">蓝牙BLE</span></div>
+                <div class="device-status-indicator disconnected" id="indicator-bt-le"><span class="ds-dot"></span>未连接</div>
+              </div>
+              <div class="device-status-card-desc" id="desc-bt-le">蓝牙低功耗设备，支持智能灯带、环境光传感器</div>
+              <div class="ds-click-hint">点击搜索BLE设备连接</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 注意事项提示 -->
+        <div class="dashboard-notice-bar" style="background:linear-gradient(135deg,rgba(196,148,60,0.12),rgba(196,148,60,0.05)); border:1px solid rgba(196,148,60,0.25); border-radius:var(--radius-sm); padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; gap:12px; font-size:13px; color:var(--muted);">
+          <span style="font-size:18px; flex-shrink:0;">&#x26A0;</span>
+          <div>
+            <strong style="color:var(--ink);">使用提示：</strong>请保持在「实时监测」页面停留，以确保人脸识别持续运行。若切换到其他页面或切出应用，监测可能会中断。
+          </div>
+        </div>
+
+        <!-- AI Monitor Bar -->
+        <div class="ai-monitor-bar">
+          <div class="ai-monitor-bar-title"><span class="ai-pulse"></span> AI实时监测<span class="live-dot inactive" id="dashboard-live-dot"></span></div>
+          <div class="ai-metric-mini">
+            <span class="ai-metric-mini-icon">&#x1F441;</span>
+            <div class="ai-metric-mini-info">
+              <div class="ai-metric-mini-label">眨眼频率</div>
+              <div class="ai-metric-mini-value warn" id="ai-blink-rate">--</div>
+            </div>
+          </div>
+          <div class="ai-metric-mini">
+            <span class="ai-metric-mini-icon">&#x1F4CF;</span>
+            <div class="ai-metric-mini-info">
+              <div class="ai-metric-mini-label">视距</div>
+              <div class="ai-metric-mini-value warn" id="ai-distance">--</div>
+            </div>
+          </div>
+          <div class="ai-metric-mini">
+            <span class="ai-metric-mini-icon">&#x1F9D1;</span>
+            <div class="ai-metric-mini-info">
+              <div class="ai-metric-mini-label">坐姿</div>
+              <div class="ai-metric-mini-value warn" id="ai-posture">--</div>
+            </div>
+          </div>
+          <div class="ai-algo-tag">&#x1F916; EAR + FaceDet</div>
+        </div>
+
+        <!-- Scene Mode -->
+        <div class="scene-mode-panel">
+          <div class="scene-mode-title">&#x1F3AC; 场景模式</div>
+          <div class="scene-mode-grid" id="scene-mode-grid">
+            <div class="scene-mode-btn active" data-scene="office">
+              <span class="sm-icon">&#x1F4BC;</span>
+              <div class="sm-name">办公</div>
+              <div class="sm-desc">标准办公距离，30分钟提醒</div>
+            </div>
+            <div class="scene-mode-btn" data-scene="reading">
+              <span class="sm-icon">&#x1F4DA;</span>
+              <div class="sm-name">阅读</div>
+              <div class="sm-desc">近距离阅读，20分钟提醒</div>
+            </div>
+            <div class="scene-mode-btn" data-scene="gaming">
+              <span class="sm-icon">&#x1F3AE;</span>
+              <div class="sm-name">游戏</div>
+              <div class="sm-desc">游戏场景，25分钟提醒</div>
+            </div>
+            <div class="scene-mode-btn" data-scene="video">
+              <span class="sm-icon">&#x1F4FA;</span>
+              <div class="sm-name">影视</div>
+              <div class="sm-desc">远距离观看，40分钟提醒</div>
+            </div>
+            <div class="scene-mode-btn" data-scene="custom">
+              <span class="sm-icon">&#x2699;&#xFE0F;</span>
+              <div class="sm-name">自定义</div>
+              <div class="sm-desc">自由调节阈值参数</div>
+            </div>
+          </div>
+          <div class="scene-mode-detail" id="scene-mode-detail">
+            <span>&#x1F4A1;</span>
+            <span>当前模式：<strong id="scene-current-name">办公</strong> | 距离阈值：<strong id="scene-threshold-dist">45cm</strong> | 提醒间隔：<strong id="scene-threshold-time">30分钟</strong> | 眨眼预警：<strong id="scene-threshold-blink">10次/min</strong></span>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+          <div class="stat-card blue">
+            <div class="stat-header">
+              <span class="stat-label">今日用眼时长</span>
+              <div class="stat-icon">&#x23F0;</div>
+            </div>
+            <div class="stat-value" id="kpi-duration">--<span class="stat-unit"> 小时</span></div>
+            <div class="stat-trend" id="kpi-duration-trend">等待监测数据</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-header">
+              <span class="stat-label">眨眼频率</span>
+              <div class="stat-icon">&#x1F441;</div>
+            </div>
+            <div class="stat-value" id="kpi-blink">--<span class="stat-unit"> 次/分</span></div>
+            <div class="stat-trend" id="kpi-blink-trend">等待监测数据</div>
+          </div>
+          <div class="stat-card orange">
+            <div class="stat-header">
+              <span class="stat-label">平均视距</span>
+              <div class="stat-icon">&#x1F4CF;</div>
+            </div>
+            <div class="stat-value" id="kpi-distance">--<span class="stat-unit"> cm</span></div>
+            <div class="stat-trend" id="kpi-distance-trend">等待监测数据</div>
+          </div>
+          <div class="stat-card purple">
+            <div class="stat-header">
+              <span class="stat-label">提醒次数</span>
+              <div class="stat-icon">&#x1F514;</div>
+            </div>
+            <div class="stat-value" id="kpi-alerts">--<span class="stat-unit"> 次</span></div>
+            <div class="stat-trend" id="kpi-alerts-trend">等待监测数据</div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">近7天用眼时长趋势</div>
+                <div class="chart-subtitle">每日累计用眼小时数</div>
+              </div>
+              <div class="chart-actions">
+                <button class="btn-sm active" data-range="7">7天</button>
+                <button class="btn-sm" data-range="30">30天</button>
+              </div>
+            </div>
+            <div class="chart-container" id="chart-usage-trend"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">提醒类型分布</div>
+                <div class="chart-subtitle">各类提醒占比</div>
+              </div>
+            </div>
+            <div class="chart-container" id="chart-alert-pie"></div>
+          </div>
+          <div class="chart-card full-width">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">用眼热力图</div>
+                <div class="chart-subtitle">每小时用眼强度</div>
+              </div>
+            </div>
+            <div class="chart-container" id="chart-heatmap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Page: Monitor ==================== -->
+      <div class="page" id="page-monitor">
+        <div class="monitor-body">
+          <div class="monitor-sidebar">
+
+        <!-- Device Selector -->
+        <div class="device-selector-section">
+          <div class="device-selector-title">&#x1F4F7; 选择监测设备</div>
+          <div class="monitor-device-title" id="monitor-device-title">所有设备（点击选择或连接）</div>
+          <div class="device-selector" id="monitor-device-selector">
+          </div>
+        </div>
+
+        <!-- Calibration -->
+        <div class="calibration-panel">
+          <div class="calibration-panel-title">&#x1F3AF; 校准面板</div>
+          <div class="calibration-grid">
+            <div class="calibration-item">
+              <div class="calibration-item-label">面部距离校准</div>
+              <div class="calibration-item-value" id="cal-dist">未校准</div>
+              <div class="calibration-item-status pending" id="cal-dist-status">待校准（请坐在35cm处）</div>
+              <div class="cal-progress-bar"><div class="cal-progress-fill" id="cal-dist-progress"></div></div>
+              <button class="calibrate-btn" id="btn-cal-dist" onclick="calibrateDistance()">校准距离</button>
+            </div>
+            <div class="calibration-item">
+              <div class="calibration-item-label">眼睛EAR基线</div>
+              <div class="calibration-item-value" id="cal-ear">未校准</div>
+              <div class="calibration-item-status pending" id="cal-ear-status">待校准（睁眼保持2秒）</div>
+              <div class="cal-progress-bar"><div class="cal-progress-fill" id="cal-ear-progress"></div></div>
+              <button class="calibrate-btn" id="btn-cal-ear" onclick="calibrateEAR()">校准EAR</button>
+            </div>
+            <div class="calibration-item">
+              <div class="calibration-item-label">坐姿角度基线</div>
+              <div class="calibration-item-value" id="cal-posture">未校准</div>
+              <div class="calibration-item-status pending" id="cal-posture-status">待校准（请坐直）</div>
+              <div class="cal-progress-bar"><div class="cal-progress-fill" id="cal-posture-progress"></div></div>
+              <button class="calibrate-btn" id="btn-cal-posture" onclick="calibratePosture()">校准坐姿</button>
+            </div>
+          </div>
+          <button class="calibrate-all-btn" id="btn-cal-all" onclick="calibrateAll()">一键校准全部</button>
+        </div>
+
+          </div><!-- end monitor-sidebar -->
+          <div class="monitor-body-right">
+
+        <!-- Monitor Grid -->
+        <div class="monitor-grid">
+          <div class="monitor-main">
+            <div class="monitor-video" id="monitor-video-container">
+              <video id="monitor-video" autoplay playsinline muted style="display:none;"></video>
+              <canvas id="monitor-overlay-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;border-radius:var(--radius-sm);z-index:2;"></canvas>
+              <div class="video-overlay">
+                <div class="live-badge" id="monitor-live-badge" style="display:none;">实时</div>
+                <div class="scan-line" id="monitor-scan-line" style="display:none;"></div>
+              </div>
+              <div class="monitor-placeholder" id="monitor-placeholder">
+                <div class="cam-icon">&#x1F4F7;</div>
+                <div>选择设备并开启监测</div>
+                <button class="cam-auth-btn" id="btn-start-monitor" disabled style="opacity:0.6;cursor:not-allowed;">AI模型加载中...</button>
+                <div id="ai-loading-bar" style="width:80%;max-width:260px;margin:8px auto 0;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;overflow:hidden;">
+                  <div id="ai-loading-progress" style="width:0%;height:100%;background:linear-gradient(90deg,#c8874d,#e8a84d);border-radius:2px;transition:width 0.4s ease;"></div>
+                </div>
+                <div id="ai-loading-text" style="font-size:11px;color:#8a8578;margin-top:4px;text-align:center;">正在加载AI检测模块...</div>
+              </div>
+            </div>
+            <div class="monitor-status-bar" id="monitor-status-bar">
+              <div class="monitor-status-item"><span class="monitor-status-dot" id="ms-dot-face"></span><span id="ms-text-face">面部检测: 待开启</span></div>
+              <div class="monitor-status-item"><span class="monitor-status-dot" id="ms-dot-ear"></span><span id="ms-text-ear">眨眼检测: 待开启</span></div>
+              <div class="monitor-status-item"><span class="monitor-status-dot" id="ms-dot-dist"></span><span id="ms-text-dist">距离估算: 待开启</span></div>
+              <div class="monitor-status-item"><span class="monitor-status-dot" id="ms-dot-posture"></span><span id="ms-text-posture">坐姿检测: 待开启</span></div>
+            </div>
+            <div class="monitor-ai-info" id="monitor-ai-info">
+              <span id="algo-info">&#x1F9E0; 算法: MediaPipe 468点3D面部关键点 + EAR几何计算</span>
+              <span class="info-tag">实时</span>
+              <span class="info-tag">本地运算</span>
+            </div>
+          </div>
+          <div class="monitor-metrics">
+            <div class="metric-box">
+              <div class="metric-value good" id="m-blink-rate">--</div>
+              <div class="metric-label">眨眼频率</div>
+              <div class="metric-unit">次/分钟</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-value good" id="m-ear">--</div>
+              <div class="metric-label">EAR值</div>
+              <div class="metric-unit">Eye Aspect Ratio</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-value good" id="m-distance">--</div>
+              <div class="metric-label">面部距离</div>
+              <div class="metric-unit">厘米</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-value good" id="m-posture">--</div>
+              <div class="metric-label">坐姿角度</div>
+              <div class="metric-unit">度</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-value good" id="m-session-time">0:00</div>
+              <div class="metric-label">本次监测时长</div>
+              <div class="metric-unit">分:秒</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-value good" id="m-alert-count">0</div>
+              <div class="metric-label">本次提醒次数</div>
+              <div class="metric-unit">次</div>
+            </div>
+          </div>
+        </div><!-- end monitor-grid -->
+          </div><!-- end monitor-body-right -->
+        </div><!-- end monitor-body -->
+
+        <!-- Control Buttons -->
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="cam-auth-btn" id="btn-toggle-facebox" onclick="toggleFaceBox()" style="flex:1;background:rgba(106,155,106,0.8);font-size:13px;padding:8px;">隐藏识别框</button>
+          <button class="cam-auth-btn" id="btn-pause-alert" onclick="toggleAlertPause()" style="flex:1;background:rgba(90,143,106,0.8);font-size:13px;padding:8px;">暂停提醒</button>
+          <button class="cam-auth-btn" id="btn-stop-monitor" onclick="stopMonitoring()" style="flex:1;background:rgba(196,78,78,0.8);font-size:13px;padding:8px;display:none;">停止监测</button>
+        </div>
+
+        <!-- Log -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:14px;font-weight:600;color:var(--ink);">监测日志</div>
+          <div style="font-size:11px;color:var(--muted);" id="log-count-label">最近 20 条</div>
+        </div>
+        <div class="log-list" id="monitor-log-list">
+          <div class="log-item">
+            <div class="log-time">--</div>
+            <div class="log-icon rest">&#x1F4CC;</div>
+            <div class="log-content">
+              <div class="log-title">等待监测开始</div>
+              <div class="log-desc">开启摄像头后自动开始监测</div>
+            </div>
+            <div class="log-tag info">等待中</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Page: Stats ==================== -->
+      <div class="page" id="page-stats">
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">实时用眼数据</div>
+                <div class="chart-subtitle">最近30秒滑动窗口</div>
+              </div>
+            </div>
+            <div class="chart-container" id="chart-realtime"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">本周 vs 上周对比</div>
+                <div class="chart-subtitle">各项指标周对比</div>
+              </div>
+            </div>
+            <div class="chart-container" id="chart-compare"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">多维健康雷达</div>
+                <div class="chart-subtitle">综合眼部健康评估</div>
+              </div>
+            </div>
+            <div class="chart-container" id="chart-radar"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">每日详细数据</div>
+                <div class="chart-subtitle">按小时段分析</div>
+              </div>
+            </div>
+            <div class="chart-container" id="chart-daily-detail"></div>
+          </div>
+          <div class="chart-card full-width">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">健康趋势追踪</div>
+                <div class="chart-subtitle">近30天各项指标变化</div>
+              </div>
+            </div>
+            <div class="chart-container tall" id="chart-health-trend"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Page: Report ==================== -->
+      <div class="page" id="page-report">
+        <div class="report-header">
+          <div>
+            <div class="report-title">用眼健康报告</div>
+            <div class="report-subtitle" id="report-date">2026年7月7日</div>
+          </div>
+          <div class="report-score">
+            <div class="report-score-value">--</div>
+            <div class="report-score-label">健康评分</div>
+          </div>
+        </div>
+        <div class="report-grid">
+          <div class="report-card">
+            <div class="report-card-title">&#x1F441; 眨眼健康</div>
+            <div class="report-item"><span class="report-item-label">平均眨眼频率</span><span class="report-item-value" id="report-blink-avg">--</span></div>
+            <div class="report-item"><span class="report-item-label">最长持续不眨眼</span><span class="report-item-value" id="report-blink-max">--</span></div>
+            <div class="report-item"><span class="report-item-label">双眼平衡性</span><span class="report-item-value" id="report-blink-balance">--</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="report-blink-bar" style="width:0%"></div></div>
+          </div>
+          <div class="report-card">
+            <div class="report-card-title">&#x1F4CF; 用眼距离</div>
+            <div class="report-item"><span class="report-item-label">平均视距</span><span class="report-item-value" id="report-dist-avg">--</span></div>
+            <div class="report-item"><span class="report-item-label">最近视距</span><span class="report-item-value" id="report-dist-min">--</span></div>
+            <div class="report-item"><span class="report-item-label">标准距离达标率</span><span class="report-item-value" id="report-dist-rate">--</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="report-dist-bar" style="width:0%"></div></div>
+          </div>
+          <div class="report-card">
+            <div class="report-card-title">&#x1F9D1; 坐姿习惯</div>
+            <div class="report-item"><span class="report-item-label">平均倾斜角度</span><span class="report-item-value" id="report-posture-avg">--</span></div>
+            <div class="report-item"><span class="report-item-label">驼背检测</span><span class="report-item-value" id="report-posture-hump">--</span></div>
+            <div class="report-item"><span class="report-item-label">不良姿势占比</span><span class="report-item-value" id="report-posture-bad">--</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="report-posture-bar" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card blue">
+            <div class="stat-header"><span class="stat-label">电脑信息</span><div class="stat-icon">&#x1F4BB;</div></div>
+            <div class="device-info-bar" id="report-device-info" style="border-top:none;padding-top:0;">
+              <div class="device-info-item" id="report-device-cpu"><strong>处理器:</strong> 检测中...</div>
+              <div class="device-info-item" id="report-device-screen"><strong>屏幕:</strong> 检测中...</div>
+              <div class="device-info-item" id="report-device-mem"><strong>内存:</strong> 检测中...</div>
+            </div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-header"><span class="stat-label">本周达标天数</span><div class="stat-icon">&#x1F4C5;</div></div>
+            <div class="stat-value" id="report-stat-days"><span class="stat-unit">暂无数据</span></div>
+            <div class="stat-trend" id="report-stat-days-trend">开始监测后自动统计</div>
+          </div>
+          <div class="stat-card orange">
+            <div class="stat-header"><span class="stat-label">累计用眼</span><div class="stat-icon">&#x23F3;</div></div>
+            <div class="stat-value" id="report-stat-hours"><span class="stat-unit">暂无数据</span></div>
+            <div class="stat-trend" id="report-stat-hours-trend">开始监测后自动统计</div>
+          </div>
+          <div class="stat-card purple">
+            <div class="stat-header"><span class="stat-label">护眼积分</span><div class="stat-icon">&#x2B50;</div></div>
+            <div class="stat-value" id="report-stat-points"><span class="stat-unit">暂无数据</span></div>
+            <div class="stat-trend" id="report-stat-points-trend">开始监测后自动统计</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Page: Settings ==================== -->
+      <div class="page" id="page-settings">
+        <div class="settings-grid">
+
+          <!-- Threshold Settings -->
+          <div class="settings-card">
+            <div class="settings-title">&#x1F4CA; 监测阈值设置</div>
+            <div class="form-group">
+              <label class="form-label">距离预警阈值（cm）</label>
+              <input type="range" class="form-slider" id="slider-distance" min="20" max="80" value="45">
+              <div class="slider-value" id="slider-distance-val">45cm</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="color:var(--warning,#c8943c);">距离警告阈值（cm，高于预警值）</label>
+              <input type="range" class="form-slider" id="slider-distance-warn" min="25" max="90" value="55">
+              <div class="slider-value" id="slider-distance-warn-val" style="color:var(--warning);">55cm</div>
+            </div>
+            <div class="form-group">
+              <div class="settings-row" style="align-items:center; gap:8px;">
+                <label class="form-label" style="margin-bottom:0;">提醒间隔</label>
+                <input type="number" id="setting-interval-min" min="0" max="60" value="0" style="width:55px;padding:6px 8px;border:1px solid var(--border,#d8d3c9);border-radius:6px;background:var(--bg,#fff);font-size:14px;text-align:center;color:#fff;" oninput="appState.thresholds.intervalMin=+this.value">
+                <span>分</span>
+                <input type="number" id="setting-interval-sec" min="0" max="59" value="30" style="width:55px;padding:6px 8px;border:1px solid var(--border,#d8d3c9);border-radius:6px;background:var(--bg,#fff);font-size:14px;text-align:center;color:#fff;" oninput="appState.thresholds.intervalSec=+this.value">
+                <span>秒</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">眨眼预警频率（次/min，低于此值触发预警）</label>
+              <input type="range" class="form-slider" id="slider-blink" min="3" max="25" value="10">
+              <div class="slider-value" id="slider-blink-val">10次/min</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="color:var(--warning,#c8943c);">眨眼警告频率（次/min，高于预警值）</label>
+              <input type="range" class="form-slider" id="slider-blink-warn" min="5" max="35" value="15">
+              <div class="slider-value" id="slider-blink-warn-val" style="color:var(--warning);">15次/min</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">坐姿角度阈值（较差）</label>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="range" id="slider-posture" min="30" max="90" step="1" value="70" class="form-slider" oninput="syncPostureSlider()">
+                <span id="slider-posture-val" class="slider-value">70°</span>
+              </div>
+              <small class="form-hint">低于此角度触发提醒</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="color:var(--warning,#c8943c);">坐姿角度阈值（一般）</label>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="range" id="slider-posture-warn" min="40" max="95" step="1" value="80" class="form-slider" oninput="syncPostureWarnSlider()">
+                <span id="slider-posture-warn-val" class="slider-value" style="color:var(--warning);">80°</span>
+              </div>
+              <small class="form-hint">低于此角度显示警告（不能低于较差阈值）</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">EAR闭眼阈值</label>
+              <input type="range" class="form-slider" id="slider-ear" min="10" max="30" value="22" step="1">
+              <div class="slider-value" id="slider-ear-val">0.22</div>
+            </div>
+          </div>
+
+          <!-- Permission Settings -->
+          <div class="settings-card">
+            <div class="settings-title">&#x1F510; 权限管理</div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">摄像头权限</div>
+                <div class="toggle-desc">用于面部检测和用眼监测</div>
+                <div class="perm-error-hint" id="perm-error-camera"></div>
+              </div>
+              <div class="toggle-switch" id="perm-toggle-camera" data-perm="camera"></div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">蓝牙权限</div>
+                <div class="toggle-desc">用于连接蓝牙手机/平板/BLE设备</div>
+                <div class="perm-error-hint" id="perm-error-bluetooth"></div>
+              </div>
+              <div class="toggle-switch" id="perm-toggle-bluetooth" data-perm="bluetooth"></div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">USB权限</div>
+                <div class="toggle-desc">用于连接USB传感器/硬件终端</div>
+                <div class="perm-error-hint" id="perm-error-usb"></div>
+              </div>
+              <div class="toggle-switch" id="perm-toggle-usb" data-perm="usb"></div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">通知权限</div>
+                <div class="toggle-desc">用于发送用眼提醒通知</div>
+                <div class="perm-error-hint" id="perm-error-notification"></div>
+              </div>
+              <div class="toggle-switch" id="perm-toggle-notification" data-perm="notification"></div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">后台运行</div>
+                <div class="toggle-desc">浏览器限制：需要安装为PWA才能真正后台运行。当前标签页关闭后监测将停止。</div>
+              </div>
+              <div class="toggle-switch" style="opacity:0.5;cursor:not-allowed;" title="需要PWA"></div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">开机自启动</div>
+                <div class="toggle-desc">浏览器限制：需要安装为PWA才能实现开机自启动功能。</div>
+              </div>
+              <div class="toggle-switch" style="opacity:0.5;cursor:not-allowed;" title="需要PWA"></div>
+            </div>
+          </div>
+
+          <!-- Device Management -->
+          <div class="settings-card">
+            <div class="settings-title">&#x1F4E1; 设备管理</div>
+            <div class="settings-device-list" id="settings-device-list">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+
+          <!-- Sound Alert Settings -->
+          <div class="settings-card">
+            <div class="settings-title">&#x1F514; 声音提醒</div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">启用声音提醒</div>
+                <div class="toggle-desc">异常持续一定时间后播放提醒音</div>
+              </div>
+              <div class="toggle-switch active" id="setting-alert-sound" onclick="this.classList.toggle('active'); appState.alertSound=this.classList.contains('active'); dbPut('settings',{key:'alertSound',value:appState.alertSound})"></div>
+            </div>
+            <div class="form-group" style="margin-top:16px;">
+              <label class="form-label">持续异常后提醒 — 细分设置（秒）</label>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
+                <div style="flex:1;min-width:120px;">
+                  <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">面部距离</div>
+                  <input type="range" class="form-slider" id="setting-alert-duration-distance" min="1" max="30" value="5" oninput="appState.alertDurationDistance=+this.value; document.getElementById('alert-duration-distance-val').textContent=this.value+'秒'; dbPut('settings',{key:'alertDurationDistance',value:+this.value})">
+                  <div class="slider-value" id="alert-duration-distance-val">5秒</div>
+                </div>
+                <div style="flex:1;min-width:120px;">
+                  <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">坐姿角度</div>
+                  <input type="range" class="form-slider" id="setting-alert-duration-posture" min="1" max="30" value="5" oninput="appState.alertDurationPosture=+this.value; document.getElementById('alert-duration-posture-val').textContent=this.value+'秒'; dbPut('settings',{key:'alertDurationPosture',value:+this.value})">
+                  <div class="slider-value" id="alert-duration-posture-val">5秒</div>
+                </div>
+                <div style="flex:1;min-width:120px;">
+                  <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">眨眼频率</div>
+                  <input type="range" class="form-slider" id="setting-alert-duration-blink" min="1" max="30" value="5" oninput="appState.alertDurationBlink=+this.value; document.getElementById('alert-duration-blink-val').textContent=this.value+'秒'; dbPut('settings',{key:'alertDurationBlink',value:+this.value})">
+                  <div class="slider-value" id="alert-duration-blink-val">5秒</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Storage & Export -->
+          <div class="settings-card">
+            <div class="settings-title">&#x1F4BE; 数据存储</div>
+            <div class="storage-info-grid">
+              <div class="storage-info-item">
+                <div class="storage-info-value" id="storage-count-sessions">0</div>
+                <div class="storage-info-label">监测记录数</div>
+              </div>
+              <div class="storage-info-item">
+                <div class="storage-info-value" id="storage-count-settings">0</div>
+                <div class="storage-info-label">设置记录数</div>
+              </div>
+              <div class="storage-info-item">
+                <div class="storage-info-value" id="storage-count-calibration">0</div>
+                <div class="storage-info-label">校准记录数</div>
+              </div>
+            </div>
+            <div class="storage-actions">
+              <button class="storage-btn primary" id="btn-export-data">&#x1F4E4; 导出数据</button>
+              <button class="storage-btn default" id="btn-import-data">&#x1F4E5; 导入数据</button>
+              <button class="storage-btn default" id="btn-pick-folder">&#x1F4C1; 选择导出文件夹</button>
+            </div>
+            <div class="path-display" id="export-folder-path">未选择文件夹（导出将使用浏览器默认下载）</div>
+            <div class="inline-confirm" id="clear-data-confirm">
+              <div style="font-weight:600;margin-bottom:8px;">&#x26A0; 选择清除范围</div>
+              <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;">
+                <input type="radio" name="clear-scope" value="sessions" checked style="accent-color:var(--danger);">
+                <span><strong>仅清除监测记录</strong>（推荐）— 只删除用眼监测数据，保留设置、校准和激活码</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;">
+                <input type="radio" name="clear-scope" value="all" style="accent-color:var(--danger);">
+                <span><strong>清除所有数据</strong> — 删除监测记录、设置和校准数据，但保留激活码</span>
+              </label>
+              <div style="background:rgba(200,135,77,0.08);border:1px solid rgba(200,135,77,0.25);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--ink);margin-bottom:10px;line-height:1.6;">
+                &#x1F4A1; <strong>换设备提醒：</strong>清除数据后换设备将丢失监测记录。如需保留，请先<a href="javascript:void(0)" id="link-export-before-clear" style="color:var(--primary);text-decoration:underline;">导出数据备份</a>，在新设备上导入即可恢复。激活码与手机号绑定，换设备后重新输入激活码即可。
+              </div>
+              <div class="inline-confirm-actions">
+                <button class="ic-btn ic-cancel" id="btn-clear-cancel">取消</button>
+                <button class="ic-btn ic-confirm" id="btn-clear-confirm">确认清除</button>
+              </div>
+            </div>
+            <div class="storage-actions" style="margin-top:12px;">
+              <button class="storage-btn danger" id="btn-clear-all-data">&#x1F5D1; 清除所有数据</button>
+              <button class="storage-btn danger" id="btn-clear-browser-cache">&#x1F5D1; 清除浏览器缓存</button>
+            </div>
+            <input type="file" id="import-file-input" accept=".json" style="display:none;">
+          </div>
+
+          <div class="settings-actions">
+            <button class="settings-btn secondary" id="btn-settings-cancel" onclick="cancelSettings()">取消</button>
+            <button class="settings-btn primary" id="btn-settings-save" onclick="saveSettings()">保存设置</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- 底部Tab导航（移动端） -->
+  <nav class="bottom-tab-bar" id="bottom-tab-bar">
+    <div class="tab-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>概览</span>
+    </div>
+    <div class="tab-item" data-tab="monitor" onclick="switchTab('monitor')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <span>监测</span>
+    </div>
+    <div class="tab-item" data-tab="stats" onclick="switchTab('stats')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10m-6 10V4M6 20v-6"/></svg>
+      <span>统计</span>
+    </div>
+    <div class="tab-item" data-tab="report" onclick="switchTab('report')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span>报告</span>
+    </div>
+    <div class="tab-item" data-tab="settings" onclick="switchTab('settings')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>设置</span>
+    </div>
+  </nav>
+
+  <!-- Hidden file input for import -->
+  
+  
+
+
+<script>
+// ==================== 模块异步加载器 ====================
+(function() {
+  var _loaded = { model: false, hmac: false, app: false };
+  var _loadStart = Date.now();
+  var _statusEl = document.getElementById('loading-status');
+  var _progressEl = document.getElementById('loading-progress');
+  var _progressText = document.getElementById('loading-progress-text');
+  
+  function _updateProgress(pct, text) {
+    if (_progressEl) _progressEl.style.width = pct + '%';
+    if (_progressText) _progressText.textContent = text || '';
+  }
+  
+  function _onReady() {
+    var elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
+    console.log('[护眼精灵] 所有模块加载完成 (' + elapsed + 's)');
+  }
+  
+  function _loadScript(src, key) {
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function() {
+        _loaded[key] = true;
+        console.log('[护眼精灵] ' + key + ' 已加载');
+        resolve();
+      };
+      s.onerror = function(e) {
+        console.error('[护眼精灵] ' + key + ' 加载失败:', src, e);
+        // 即使模型加载失败也继续（降级模式）
+        _loaded[key] = true;
+        resolve();
+      };
+      document.head.appendChild(s);
+    });
+  }
+  
+  function _loadCSS(href) {
+    return new Promise(function(resolve) {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  }
+  
+  // 加载顺序：HMAC安全 → 模型数据 → 主应用
+  // HMAC 最小(6KB)，先加载保证安全
+  // 模型最大(4.8MB)，最后加载（用户可以先看到页面）
+  _updateProgress(10, '加载安全模块...');
+  _loadScript('hmac-security.js', 'hmac').then(function() {
+    _updateProgress(20, '加载AI模型数据...');
+    return _loadScript('model-data.js', 'model');
+  }).then(function() {
+    _updateProgress(70, '加载应用逻辑...');
+    return _loadScript('app.js', 'app');
+  }).then(function() {
+    _updateProgress(100, '加载完成');
+    _onReady();
+  }).catch(function(err) {
+    console.error('[护眼精灵] 模块加载出错:', err);
+    _onReady();
+  });
+  
+  // 如果 10 秒后模型还没加载完，显示提示
+  setTimeout(function() {
+    if (!_loaded.model) {
+      console.warn('[护眼精灵] 模型加载较慢，请耐心等待...');
+    }
+  }, 10000);
+  
+  // 30 秒超时兜底
+  setTimeout(function() {
+    if (!_loaded.app) {
+      console.error('[护眼精灵] 加载超时，尝试重新加载...');
+      // 不自动重载，避免循环
+    }
+  }, 30000);
+  
+})();
+</script>
+</body>
+</html>
