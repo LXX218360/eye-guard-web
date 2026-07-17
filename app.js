@@ -5782,6 +5782,12 @@
 
     // 联网查询服务器剩余时间（服务器为准，防止本地篡改）
     queryServerFreeUsage().then(function(serverUsedMinutes) {
+      // -1 表示联网查询失败，不允许启动免费试用（防止刷无限时间）
+      if (serverUsedMinutes < 0) {
+        showAlert('网络连接失败，无法验证试用时间。请检查网络后重试', 'warn', '⚠️');
+        stopMonitoring();
+        return;
+      }
       // 以服务器记录的已用时间为准（服务器精确到0.1分钟）
       var serverUsedSec = Math.round(serverUsedMinutes * 60);
       var totalLimitSec = appState.freeDailyLimit * 60;
@@ -5924,8 +5930,9 @@
         return data.used_minutes; // 返回已用分钟数
       }
       return 0;
-    }).catch(function() {
-      return 0;
+    }).catch(function(err) {
+      console.error('[免费试用] 联网查询失败:', err);
+      return -1; // -1 表示查询失败，不允许启动监测
     });
   }
 
