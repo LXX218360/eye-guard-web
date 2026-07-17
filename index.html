@@ -85,8 +85,15 @@
 </head>
 <body>
 
-
-
+<!-- ==================== 加载遮罩 + 进度条 ==================== -->
+<div id="loading-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0f172a;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity 0.5s ease;">
+  <div style="font-size:2.5rem;font-weight:700;color:#e8a84d;letter-spacing:2px;">护眼精灵</div>
+  <div style="font-size:0.9rem;color:#94a3b8;">正在加载，请稍候...</div>
+  <div style="width:280px;height:6px;background:#1e293b;border-radius:3px;overflow:hidden;">
+    <div id="loading-progress" style="width:0%;height:100%;background:linear-gradient(90deg,#c8874d,#e8a84d);border-radius:3px;transition:width 0.3s ease;"></div>
+  </div>
+  <div id="loading-progress-text" style="font-size:0.8rem;color:#64748b;min-height:1.2em;text-align:center;">正在初始化...</div>
+</div>
 
 
   <!-- Mobile Header -->
@@ -1227,86 +1234,133 @@
 
 
 <script>
-// ==================== 模块异步加载器 ====================
+// ==================== 模块异步加载器（并行加载 + 进度条） ====================
 (function() {
   var _loaded = { model: false, hmac: false, app: false };
   var _loadStart = Date.now();
   var _statusEl = document.getElementById('loading-status');
   var _progressEl = document.getElementById('loading-progress');
   var _progressText = document.getElementById('loading-progress-text');
+  var _overlay = document.getElementById('loading-overlay');
   
   function _updateProgress(pct, text) {
     if (_progressEl) _progressEl.style.width = pct + '%';
     if (_progressText) _progressText.textContent = text || '';
   }
+
+  function _hideOverlay() {
+    if (_overlay) {
+      _overlay.style.opacity = '0';
+      _overlay.style.transition = 'opacity 0.5s ease';
+      setTimeout(function() { _overlay.style.display = 'none'; }, 500);
+    }
+  }
   
-  function _onReady() {
+  function _onAppReady() {
+    var elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
+    console.log('[护眼精灵] 应用逻辑加载完成 (' + elapsed + 's)');
+    _updateProgress(90, '应用已就绪，AI模型后台加载中...');
+    _hideOverlay();
+  }
+
+  function _onAllReady() {
     var elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
     console.log('[护眼精灵] 所有模块加载完成 (' + elapsed + 's)');
-  }
-  
-  function _loadScript(src, key) {
-    return new Promise(function(resolve, reject) {
-      var s = document.createElement('script');
-      s.src = src;
-      s.onload = function() {
-        _loaded[key] = true;
-        console.log('[护眼精灵] ' + key + ' 已加载');
-        resolve();
-      };
-      s.onerror = function(e) {
-        console.error('[护眼精灵] ' + key + ' 加载失败:', src, e);
-        // 即使模型加载失败也继续（降级模式）
-        _loaded[key] = true;
-        resolve();
-      };
-      document.head.appendChild(s);
-    });
-  }
-  
-  function _loadCSS(href) {
-    return new Promise(function(resolve) {
-      var link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = href;
-      link.onload = resolve;
-      link.onerror = resolve;
-      document.head.appendChild(link);
-    });
-  }
-  
-  // 加载顺序：HMAC安全 → 模型数据 → 主应用
-  // HMAC 最小(6KB)，先加载保证安全
-  // 模型最大(4.8MB)，最后加载（用户可以先看到页面）
-  _updateProgress(10, '加载安全模块...');
-  _loadScript('hmac-security.js', 'hmac').then(function() {
-    _updateProgress(20, '加载AI模型数据...');
-    return _loadScript('model-data.js', 'model');
-  }).then(function() {
-    _updateProgress(70, '加载应用逻辑...');
-    return _loadScript('app.js', 'app');
-  }).then(function() {
     _updateProgress(100, '加载完成');
-    _onReady();
-  }).catch(function(err) {
-    console.error('[护眼精灵] 模块加载出错:', err);
-    _onReady();
-  });
+  }
   
-  // 如果 10 秒后模型还没加载完，显示提示
+  function _loadScript(src, key, useXHR) {
+    return new Promise(function(resolve, reject) {
+      if (useXHR) {
+        // 用 XHR 加载大文件，可以追踪进度
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', src, true);
+        xhr.onprogress = function(e) {
+          if (e.lengthComputable) {
+            var pct = Math.round(e.loaded / e.total * 100);
+            if (key === 'model') {
+              // 模型加载占 20%-80% 的进度
+              var mapped = 20 + Math.round(pct * 0.6);
+              _updateProgress(mapped, '加载AI模型数据... ' + pct + '% (' + (e.loaded/1024/1024).toFixed(1) + '/' + (e.total/1024/1024).toFixed(1) + ' MB)');
+            }
+          }
+        };
+        xhr.onload = function() {
+          if (xhr.status === 200) {
+            var s = document.createElement('script');
+            s.textContent = xhr.responseText;
+            document.head.appendChild(s);
+            _loaded[key] = true;
+            console.log('[护眼精灵] ' + key + ' 已加载 (XHR)');
+            resolve();
+          } else {
+            _loaded[key] = true;
+            resolve();
+          }
+        };
+        xhr.onerror = function() {
+          console.error('[护眼精灵] ' + key + ' XHR加载失败，尝试普通加载');
+          _loadScriptFallback(src, key, resolve);
+        };
+        xhr.send();
+      } else {
+        _loadScriptFallback(src, key, resolve);
+      }
+    });
+  }
+
+  function _loadScriptFallback(src, key, resolve) {
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = function() {
+      _loaded[key] = true;
+      console.log('[护眼精灵] ' + key + ' 已加载');
+      resolve();
+    };
+    s.onerror = function(e) {
+      console.error('[护眼精灵] ' + key + ' 加载失败:', src);
+      _loaded[key] = true;
+      resolve();
+    };
+    document.head.appendChild(s);
+  }
+  
+  // 加载策略：
+  // 1. HMAC (6KB) + app.js (610KB) 并行加载 → 加载完即可交互
+  // 2. model-data.js (4.78MB) 用 XHR 后台加载，带实时进度
+  // 3. 模型加载完前，摄像头功能显示"AI模型加载中"
+  _updateProgress(5, '正在初始化...');
+
+  // 并行加载 HMAC 和 app.js（小文件，快速就绪）
+  var hmacPromise = _loadScript('hmac-security.js', 'hmac', false);
+  var appPromise = _loadScript('app.js', 'app', false);
+
+  // app.js 加载完，页面可交互
+  appPromise.then(function() {
+    _onAppReady();
+  });
+
+  // model-data.js 用 XHR 加载（带进度条），不阻塞 app.js
+  _updateProgress(15, '开始加载AI模型数据...');
+  _loadScript('model-data.js', 'model', true).then(function() {
+    _onAllReady();
+  });
+
+  // 10 秒后如果模型还没好，提示用户
   setTimeout(function() {
     if (!_loaded.model) {
-      console.warn('[护眼精灵] 模型加载较慢，请耐心等待...');
+      _updateProgress(_progressEl ? parseInt(_progressEl.style.width) : 50, 'AI模型加载中，您可以先使用其他功能...');
     }
   }, 10000);
-  
-  // 30 秒超时兜底
+
+  // 60 秒超时
   setTimeout(function() {
-    if (!_loaded.app) {
-      console.error('[护眼精灵] 加载超时，尝试重新加载...');
-      // 不自动重载，避免循环
+    if (!_loaded.model) {
+      console.error('[护眼精灵] 模型加载超时');
+      _updateProgress(90, 'AI模型加载超时，摄像头功能将使用降级模式');
+      _onAllReady();
     }
-  }, 30000);
+  }, 60000);
   
 })();
 </script>
