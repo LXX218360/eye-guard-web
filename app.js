@@ -1573,6 +1573,38 @@
   let monitorCanvasCtx = null;
 
   // ====== MediaPipe Face Landmarker ======
+  // 多CDN回退加载模型文件（返回可用的Blob URL，全部失败则返回null）
+  function _loadModelWithFallback(urls) {
+    return urls.reduce(function(promise, url) {
+      return promise.then(function(result) {
+        if (result) return result;
+        console.log('[模型] 尝试: ' + url.substring(0, 60) + '...');
+        window._updateAILoadingProgress && window._updateAILoadingProgress(60, '下载AI模型 ' + (urls.indexOf(url) + 1) + '/' + urls.length + '...');
+        return new Promise(function(resolve) {
+          var timeout = setTimeout(function() {
+            console.warn('[模型] 超时: ' + url.substring(0, 60));
+            resolve(null);
+          }, 15000);
+          fetch(url).then(function(r) {
+            if (!r.ok) throw new Error(r.status);
+            return r.blob();
+          }).then(function(blob) {
+            clearTimeout(timeout);
+            if (blob && blob.size > 10000) {
+              var blobUrl = URL.createObjectURL(blob);
+              console.log('[模型] 成功: ' + url.substring(0, 60) + ' (' + (blob.size / 1024 / 1024).toFixed(1) + 'MB)');
+              resolve(blobUrl);
+            } else { resolve(null); }
+          }).catch(function(err) {
+            clearTimeout(timeout);
+            console.warn('[模型] 失败: ' + err.message);
+            resolve(null);
+          });
+        });
+      });
+    }, Promise.resolve(null));
+  }
+
   let faceLandmarker = null;
   let mediapipeInitializing = false;
   let mediapipeLastVideoTime = -1;
@@ -1662,9 +1694,13 @@
           console.warn('MediaPipe: file://协议且无内嵌模型，将使用像素分析降级');
         }
       } else {
-        // https/http 协议：优先 jsdelivr CDN（国内可用），回退 Google Storage
-        modelPath = 'https://fastly.jsdelivr.net/gh/google/mediapipe@refs/heads/master/mediapipe/tasks/vision/test_data/face_landmarker/face_landmarker.task';
-        console.log('MediaPipe: 使用jsdelivr CDN模型（国内可用）');
+        // https/http 协议：多 CDN 回退加载模型
+        var modelUrls = [
+          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+          'https://cdn.jsdelivr.net/gh/nicolo-ribaudo/mediapipe-models@main/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+        ];
+        modelPath = await _loadModelWithFallback(modelUrls);
+        console.log('MediaPipe: 模型加载完成，来源: ' + (modelPath || 'unknown'));
       }
 
       // 先尝试GPU，失败后降级CPU（关闭不需要的blendshapes和transformation计算以提升性能）
