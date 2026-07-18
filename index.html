@@ -1338,7 +1338,14 @@
   // 并行加载 HMAC 和 app.js（加版本号防止缓存）
   var _v = Date.now(); // 缓存破坏版本号
   var hmacPromise = _loadScript('hmac-security.js?v=' + _v, 'hmac', false);
-  var appPromise = _loadScript('app.js?v=' + _v, 'app', false);
+  // app.js 从 jsdelivr CDN 加载最新版（确保代码是最新的，不依赖 PythonAnywhere 上的旧版）
+  var _appSrc = 'app.js?v=' + _v;
+  // 检测是否在 PythonAnywhere 上，如果是，从 GitHub+jsdelivr 加载最新 app.js
+  if (location.hostname.indexOf('pythonanywhere.com') !== -1) {
+    _appSrc = 'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web@main/app.js?v=' + _v;
+    console.log('[加载] 从 jsdelivr CDN 加载最新 app.js');
+  }
+  var appPromise = _loadScript(_appSrc, 'app', false);
 
   // 两个都加载完
   Promise.all([hmacPromise, appPromise]).then(function() {
@@ -1346,6 +1353,28 @@
     _hideOverlay();
     var elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
     console.log('[护眼精灵] 所有模块加载完成 (' + elapsed + 's)');
+    // 自动预加载 AI 模型（后台异步，不阻塞页面交互）
+    if (typeof window.initFaceLandmarker === 'function') {
+      setTimeout(function() {
+        try { window.initFaceLandmarker(); } catch(e) { console.warn('[预加载] AI模型后台加载异常:', e); }
+      }, 300);
+    } else {
+      console.warn('[预加载] initFaceLandmarker 未定义，等待 app.js 暴露');
+      // app.js 可能用 async IIFE 包装，尝试其他方式触发
+      var checkCount = 0;
+      var checkInterval = setInterval(function() {
+        checkCount++;
+        if (typeof window.initFaceLandmarker === 'function') {
+          clearInterval(checkInterval);
+          try { window.initFaceLandmarker(); } catch(e) {}
+        } else if (checkCount > 30) { // 最多等15秒
+          clearInterval(checkInterval);
+          // 即使模型加载失败，也启用按钮（降级模式）
+          var btn = document.getElementById('btn-start-monitor');
+          if (btn) { btn.disabled = false; btn.textContent = '开启监测(降级模式)'; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+        }
+      }, 500);
+    }
   });
   
 })();
