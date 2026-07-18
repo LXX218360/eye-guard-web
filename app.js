@@ -1667,19 +1667,29 @@
       return { url: url, fromCache: true };
     }
 
-    // 2. 缓存未命中，从网络下载
+    // 2. 缓存未命中，从网络下载（先同域再跨域）
     console.log('[模型缓存] 本地无缓存，从服务器下载...');
-    var modelUrl = 'face_landmarker.task';
-    // 如果在 GitHub Pages 等外部部署，尝试从 PythonAnywhere 下载模型
-    if (location.protocol === 'https:' && location.hostname.indexOf('pythonanywhere.com') === -1) {
-      var apiBase = typeof API_BASE_URL !== 'undefined' && API_BASE_URL ? API_BASE_URL : '';
-      if (apiBase) modelUrl = apiBase + '/' + 'face_landmarker.task';
+    var blob = null;
+    var sources = ['face_landmarker.task']; // 优先同域下载
+    // GitHub Pages 等外部部署时，追加 PythonAnywhere 作为备用源
+    var apiBase = typeof API_BASE_URL !== 'undefined' && API_BASE_URL ? API_BASE_URL : '';
+    if (apiBase && location.hostname.indexOf('pythonanywhere.com') === -1) {
+      sources.push(apiBase + '/face_landmarker.task');
     }
-
-    var resp = await fetch(modelUrl);
-    if (!resp.ok) throw new Error('模型下载失败: ' + resp.status);
-    var blob = await resp.blob();
-    console.log('[模型缓存] 下载完成: ' + (blob.size / 1024 / 1024).toFixed(1) + 'MB');
+    for (var i = 0; i < sources.length; i++) {
+      try {
+        console.log('[模型缓存] 尝试: ' + sources[i]);
+        var resp = await fetch(sources[i]);
+        if (resp.ok) {
+          blob = await resp.blob();
+          console.log('[模型缓存] 下载成功: ' + sources[i] + ' (' + (blob.size / 1024 / 1024).toFixed(1) + 'MB)');
+          break;
+        }
+      } catch(srcErr) {
+        console.warn('[模型缓存] 下载失败: ' + sources[i] + ' - ' + srcErr.message);
+      }
+    }
+    if (!blob) throw new Error('所有模型下载源均失败，请检查网络');
 
     // 3. 写入缓存
     await setCachedModel(blob);
