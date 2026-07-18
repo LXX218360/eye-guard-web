@@ -1,10 +1,4 @@
-
-    /* Fallback fonts for China mainland users where Google Fonts may be slow */
-    @font-face { font-family: 'Noto Sans SC'; src: local('Noto Sans SC'), local('Microsoft YaHei'), local('PingFang SC'); font-display: swap; }
-    @font-face { font-family: 'Noto Serif SC'; src: local('Noto Serif SC'), local('SimSun'), local('STSong'); font-display: swap; }
-  
-
-    :root {
+:root {
       --bg: #f5f7fa; --bg2: #ffffff; --bg3: #eef2f7;
       --ink: #1a2332; --muted: #6b7a90; --rule: #dde4ec;
       --accent: #2563eb; --accent2: #059669;
@@ -1288,4 +1282,3 @@
   @media (min-width: 768px) {
     #mobile-pro-entry { display: none !important; }
   }
-
