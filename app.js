@@ -1696,6 +1696,7 @@
       } else {
         // https/http 协议：多 CDN 回退加载模型
         var modelUrls = [
+          'face_landmarker.task',  // 同域加载（PythonAnywhere 部署时最优）
           'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web/face_landmarker.task',
           'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
         ];
@@ -5635,7 +5636,16 @@
 
 
   // API endpoint for online verification (configurable)
-  var API_BASE_URL = localStorage.getItem('eye_api_url') || 'https://18073951649.pythonanywhere.com';
+  // API 基础地址：如果部署在 PythonAnywhere（前后端同域），则留空（同源请求，无需CORS）
+  var _savedUrl = localStorage.getItem('eye_api_url');
+  var API_BASE_URL = '';
+  if (_savedUrl) {
+    API_BASE_URL = _savedUrl;
+  } else if (location.hostname.indexOf('pythonanywhere.com') === -1 && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    // GitHub Pages 等外部部署，需要指定后端地址
+    API_BASE_URL = 'https://18073951649.pythonanywhere.com';
+  }
+  // PythonAnywhere 同域部署时 API_BASE_URL = ''，请求自动发到当前域名
 
   function setApiUrl(url) {
     API_BASE_URL = url;
@@ -5699,8 +5709,8 @@
 
     msgEl.textContent = '正在联网验证...'; msgEl.style.color = 'var(--muted)';
 
-    // 强制联网验证
-    if (!API_BASE_URL) {
+    // 强制联网验证（API_BASE_URL 为空时表示同源部署，也有效）
+    if (API_BASE_URL === null || API_BASE_URL === undefined) {
       msgEl.textContent = '未配置验证服务器，请联系管理员'; msgEl.style.color = 'var(--danger)'; return;
     }
     msgEl.textContent = '正在联网验证激活码...'; msgEl.style.color = 'var(--muted)';
@@ -6018,7 +6028,7 @@
   var _serverFreeMinutesUsed = -1; // -1表示未联网查询
 
   function queryServerFreeUsage() {
-    if (!API_BASE_URL || isPro()) return Promise.resolve(0);
+    if (API_BASE_URL === null || API_BASE_URL === undefined || isPro()) return Promise.resolve(0);
     var fp = generateDeviceFingerprint();
     return safeApiFetch(API_BASE_URL + '/api/free_usage', {
       method: 'POST',
@@ -6037,7 +6047,7 @@
   }
 
   function reportServerFreeUsage(minutes) {
-    if (!API_BASE_URL || isPro()) return;
+    if (API_BASE_URL === null || API_BASE_URL === undefined || isPro()) return;
     if (minutes <= 0) return;
     var fp = generateDeviceFingerprint();
     fetch(API_BASE_URL + '/api/free_usage', {
@@ -6057,7 +6067,7 @@
     if (appState.pro.planType === 'lifetime') return Promise.resolve(true);
     // 非激活状态不需要校验
     if (!appState.pro.activated || !appState.pro.code) return Promise.resolve(false);
-    if (!API_BASE_URL) return Promise.resolve(!!appState.pro.activated);
+    if (API_BASE_URL === null || API_BASE_URL === undefined) return Promise.resolve(!!appState.pro.activated);
 
     var phone = appState.pro.boundPhone || appState.user.phone || '';
     return safeApiFetch(API_BASE_URL + '/api/pro_check', {
@@ -6213,10 +6223,10 @@ function isPro() {
       // 先隐藏占位符，再显示视频
       if (phEl) phEl.style.display = 'none';
       video.srcObject = stream;
-      video.removeAttribute('style'); // 清除内联 display:none，使用 CSS 默认样式
       video.muted = true;
       video.playsInline = true;
-      video.style.transform = 'scaleX(-1)'; // 镜像（CSS 中已设，但内联 style 被清除后需重设）
+      // 使用 absolute 定位填满容器（不依赖 flex 布局）
+      video.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:1;';
       var lbEl = document.getElementById('monitor-live-badge'); if (lbEl) lbEl.style.display = 'block';
       var slEl = document.getElementById('monitor-scan-line'); if (slEl) slEl.style.display = 'block';
 
