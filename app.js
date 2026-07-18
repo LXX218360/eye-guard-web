@@ -858,13 +858,11 @@
 
     try {
       if (def.connType === 'camera') {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:{ideal:640}, height:{ideal:480} } });
-        stream.getTracks().forEach(t => t.stop());
+        // 不在这里请求权限，等用户点击"开启监测"时在 startMonitoring 中请求
         appState.connectedDevices[dev] = true;
-        // 同步权限状态
-        appState.permissions.camera = 'granted';
+        appState.permissions.camera = 'prompt'; // 标记为待请求
         const camToggle = document.querySelector('[data-perm="camera"]');
-        if (camToggle) camToggle.classList.add('active');
+        if (camToggle) { camToggle.classList.remove('active'); camToggle.classList.add('pending'); }
         await dbPut('settings', { key:'permissions', data: appState.permissions });
       } else if (def.connType === 'usb') {
         await navigator.serial.requestPort();
@@ -875,28 +873,11 @@
       } else if (def.connType === 'bluetooth') {
         // 如果当前设备就是手机/平板，直接使用本机摄像头
         if (IS_MOBILE || IS_TABLET) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:{ideal:640}, height:{ideal:480} } });
-            stream.getTracks().forEach(t => t.stop());
-            appState.connectedDevices[dev] = true;
-            appState.permissions.camera = 'granted';
-            const camToggle = document.querySelector('[data-perm="camera"]');
-            if (camToggle) camToggle.classList.add('active');
-          } catch(camErr) {
-            console.error('Camera error:', camErr);
-            let hint = '摄像头访问失败: ' + camErr.message;
-            if (camErr.name === 'NotAllowedError') {
-              hint = '摄像头权限被拒绝，请在浏览器设置中允许摄像头访问';
-            } else if (camErr.name === 'NotFoundError') {
-              hint = '未检测到摄像头设备';
-            } else if (location.protocol === 'file:' && IS_MOBILE) {
-              hint = '提示：手机浏览器直接打开HTML文件无法使用摄像头。\n\n解决方案：\n1. 用电脑在同一WiFi下启动本地服务器访问\n2. 或将文件部署到HTTPS网站\n3. Chrome地址栏输入 chrome://flags/#unsafely-treat-insecure-origin-as-secure 添加此文件路径';
-            } else if (location.protocol === 'file:') {
-              hint = '提示：file:// 协议下浏览器可能限制摄像头访问。\n请通过 http://localhost 访问此页面';
-            }
-            showAlert(hint, 'danger', '摄像头错误');
-            return;
-          }
+          // 不在这里请求权限，等点击"开启监测"时再请求
+          appState.connectedDevices[dev] = true;
+          appState.permissions.camera = 'prompt'; // 标记为待请求
+          const camToggle = document.querySelector('[data-perm="camera"]');
+          if (camToggle) { camToggle.classList.remove('active'); camToggle.classList.add('pending'); }
         } else {
           await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
           appState.permissions.bluetooth = 'granted';
@@ -8507,6 +8488,33 @@ function isPro() {
 
   // Start app
   init();
+
+  // 启动时后台检查 GitHub 是否有更新版本（静默，不阻塞用户操作）
+  (function checkForUpdate() {
+    try {
+      var GITHUB_APP_URL = 'https://raw.githubusercontent.com/LXX218360/eye-guard-web/main/app.js';
+      fetch(GITHUB_APP_URL, { method: 'HEAD', cache: 'no-store' })
+        .then(function(resp) {
+          var remoteLen = parseInt(resp.headers.get('content-length') || '0', 10);
+          var localLen = document.querySelector('script[src*="app.js"]') ? 0 : 0;
+          // 通过当前脚本文件大小估算本地版本
+          if (remoteLen > 0 && window._appJsSize && window._appJsSize !== remoteLen) {
+            console.log('[更新] GitHub 有新版本: remote=' + remoteLen + ' vs local=' + window._appJsSize);
+            // 5秒后提示用户（不干扰首次加载）
+            setTimeout(function() {
+              if (confirm('检测到新版本可用，是否立即更新？（更新后页面将刷新）')) {
+                var s = document.createElement('script');
+                s.src = GITHUB_APP_URL + '?t=' + Date.now();
+                s.onload = function() { location.reload(true); };
+                s.onerror = function() { console.warn('[更新] 下载失败'); };
+                document.head.appendChild(s);
+              }
+            }, 5000);
+          }
+        })
+        .catch(function() { /* 静默失败 */ });
+    } catch(e) {}
+  })();
 
 // 复制文本到剪贴板
 function copyText(text) {
