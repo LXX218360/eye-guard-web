@@ -1,6 +1,5 @@
 /* ==========================================================
      护眼精灵 - 完整功能实现
-     Version: 20260718-v3 (修复: API_BASE_URL空字符串同源 + 免费时间竞态 + 视频定位)
      ========================================================== */
 
   // ===================== Mobile Detection =====================
@@ -925,6 +924,7 @@
   // ===================== Settings Device List =====================
   function refreshSettingsDeviceList() {
     const container = document.getElementById('settings-device-list');
+    if (!container) return;
     container.innerHTML = '';
     Object.keys(DEVICE_DEFS).forEach(dev => {
       const def = DEVICE_DEFS[dev];
@@ -970,8 +970,7 @@
     toggle.addEventListener('click', async () => {
       const perm = toggle.dataset.perm;
       const errEl = document.getElementById('perm-error-' + perm);
-      errEl.classList.remove('show');
-      errEl.textContent = '';
+      if (errEl) { errEl.classList.remove('show'); errEl.textContent = ''; }
 
       // 如果已经授权，再次点击=关闭权限（仅记录状态）
       if (appState.permissions[perm] === 'granted') {
@@ -1574,38 +1573,6 @@
   let monitorCanvasCtx = null;
 
   // ====== MediaPipe Face Landmarker ======
-  // 多CDN回退加载模型文件（返回可用的Blob URL，全部失败则返回null）
-  function _loadModelWithFallback(urls) {
-    return urls.reduce(function(promise, url) {
-      return promise.then(function(result) {
-        if (result) return result;
-        console.log('[模型] 尝试: ' + url.substring(0, 60) + '...');
-        window._updateAILoadingProgress && window._updateAILoadingProgress(60, '下载AI模型 ' + (urls.indexOf(url) + 1) + '/' + urls.length + '...');
-        return new Promise(function(resolve) {
-          var timeout = setTimeout(function() {
-            console.warn('[模型] 超时: ' + url.substring(0, 60));
-            resolve(null);
-          }, 15000);
-          fetch(url).then(function(r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.blob();
-          }).then(function(blob) {
-            clearTimeout(timeout);
-            if (blob && blob.size > 10000) {
-              var blobUrl = URL.createObjectURL(blob);
-              console.log('[模型] 成功: ' + url.substring(0, 60) + ' (' + (blob.size / 1024 / 1024).toFixed(1) + 'MB)');
-              resolve(blobUrl);
-            } else { resolve(null); }
-          }).catch(function(err) {
-            clearTimeout(timeout);
-            console.warn('[模型] 失败: ' + err.message);
-            resolve(null);
-          });
-        });
-      });
-    }, Promise.resolve(null));
-  }
-
   let faceLandmarker = null;
   let mediapipeInitializing = false;
   let mediapipeLastVideoTime = -1;
@@ -1617,6 +1584,111 @@
   });
 
   // 异步初始化 MediaPipe Face Landmarker
+  // ============================================================
+  // AI 模型本地缓存（IndexedDB）— 首次下载后永久复用
+  // ============================================================
+  var MODEL_CACHE_DB = 'eyeguard_model_cache';
+  var MODEL_CACHE_STORE = 'models';
+  var MODEL_CACHE_KEY = 'face_landmarker_task_v1';
+  var MODEL_CACHE_VERSION = '20260718'; // 模型文件版本，变化时自动刷新缓存
+
+  /**
+   * 从 IndexedDB 读取缓存的模型文件，返回 Blob 或 null
+   */
+  function getCachedModel() {
+    return new Promise(function(resolve) {
+      try {
+        var req = indexedDB.open(MODEL_CACHE_DB, 1);
+        req.onupgradeneeded = function(e) {
+          e.target.result.createObjectStore(MODEL_CACHE_STORE);
+        };
+        req.onsuccess = function(e) {
+          try {
+            var db = e.target.result;
+            var tx = db.transaction(MODEL_CACHE_STORE, 'readonly');
+            var store = tx.objectStore(MODEL_CACHE_STORE);
+            var getReq = store.get(MODEL_CACHE_KEY);
+            getReq.onsuccess = function() {
+              var result = getReq.result;
+              if (result && result.version === MODEL_CACHE_VERSION && result.blob instanceof Blob) {
+                console.log('[模型缓存] 命中本地缓存: ' + (result.blob.size / 1024 / 1024).toFixed(1) + 'MB');
+                resolve(result.blob);
+              } else {
+                resolve(null); // 无缓存或版本不匹配
+              }
+            };
+            getReq.onerror = function() { resolve(null); };
+            tx.oncomplete = function() { db.close(); };
+          } catch(err) { resolve(null); }
+        };
+        req.onerror = function() { resolve(null); };
+      } catch(err) { resolve(null); }
+    });
+  }
+
+  /**
+   * 将模型文件写入 IndexedDB 缓存
+   */
+  function setCachedModel(blob) {
+    return new Promise(function(resolve) {
+      try {
+        var req = indexedDB.open(MODEL_CACHE_DB, 1);
+        req.onupgradeneeded = function(e) {
+          e.target.result.createObjectStore(MODEL_CACHE_STORE);
+        };
+        req.onsuccess = function(e) {
+          try {
+            var db = e.target.result;
+            var tx = db.transaction(MODEL_CACHE_STORE, 'readwrite');
+            var store = tx.objectStore(MODEL_CACHE_STORE);
+            store.put({ version: MODEL_CACHE_VERSION, blob: blob, timestamp: Date.now() }, MODEL_CACHE_KEY);
+            tx.oncomplete = function() {
+              console.log('[模型缓存] 已保存到本地: ' + (blob.size / 1024 / 1024).toFixed(1) + 'MB');
+              db.close();
+              resolve(true);
+            };
+            tx.onerror = function() { db.close(); resolve(false); };
+          } catch(err) { resolve(false); }
+        };
+        req.onerror = function() { resolve(false); };
+      } catch(err) { resolve(false); }
+    });
+  }
+
+  /**
+   * 加载模型：优先从 IndexedDB 缓存读取，缓存未命中时从网络下载并缓存
+   * 返回 Blob URL（调用方负责 revokeObjectURL）
+   */
+  async function loadModelWithCache() {
+    // 1. 尝试从缓存读取
+    var cachedBlob = await getCachedModel();
+    if (cachedBlob) {
+      var url = URL.createObjectURL(cachedBlob);
+      return { url: url, fromCache: true };
+    }
+
+    // 2. 缓存未命中，从网络下载
+    console.log('[模型缓存] 本地无缓存，从服务器下载...');
+    var modelUrl = 'face_landmarker.task';
+    // 如果在 GitHub Pages 等外部部署，尝试从 PythonAnywhere 下载模型
+    if (location.protocol === 'https:' && location.hostname.indexOf('pythonanywhere.com') === -1) {
+      var apiBase = typeof API_BASE_URL !== 'undefined' && API_BASE_URL ? API_BASE_URL : '';
+      if (apiBase) modelUrl = apiBase + '/' + 'face_landmarker.task';
+    }
+
+    var resp = await fetch(modelUrl);
+    if (!resp.ok) throw new Error('模型下载失败: ' + resp.status);
+    var blob = await resp.blob();
+    console.log('[模型缓存] 下载完成: ' + (blob.size / 1024 / 1024).toFixed(1) + 'MB');
+
+    // 3. 写入缓存
+    await setCachedModel(blob);
+
+    // 4. 返回 Blob URL
+    var url = URL.createObjectURL(blob);
+    return { url: url, fromCache: false };
+  }
+
   async function initFaceLandmarker() {
     if (faceLandmarker) return;
     // 超时保护：如果初始化卡住超过8秒，重置标志允许重试（减少等待时间）
@@ -1641,68 +1713,29 @@
     // 更新UI状态为加载中
     var algoInfoEl = document.getElementById('algo-info');
     if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: AI模型加载中，请稍候...';
-
-    // 检测是否首次加载（通过检查缓存状态）
-    var isFirstLoad = false;
-    try {
-      if ('caches' in window) {
-        // 检查是否有 mediapipe 缓存
-        window.caches.keys().then(function(names) {
-          var hasMediaPipe = names.some(function(n) { return n.indexOf('mediapipe') !== -1 || n.indexOf('googleapis') !== -1 || n.indexOf('jsdelivr') !== -1; });
-          if (!hasMediaPipe) {
-            isFirstLoad = true;
-            var tipEl = document.getElementById('ai-first-load-tip');
-            if (tipEl) tipEl.style.display = 'block';
-          }
-        });
-      } else {
-        // 不支持 Cache API，默认可能是首次
-        var tipEl = document.getElementById('ai-first-load-tip');
-        if (tipEl) tipEl.style.display = 'block';
-      }
-    } catch(e) {
-      var tipEl = document.getElementById('ai-first-load-tip');
-      if (tipEl) tipEl.style.display = 'block';
-    }
-
-    var _aiLoadStart = Date.now();
+    var _blobUrlToRevoke = null; // 跟踪blob URL以便后续释放，声明在try外部
 
     try {
       console.log('MediaPipe: 开始加载WASM...');
       // 进度：阶段3 - 加载WASM运行时
-      var elapsedSec = ((Date.now() - _aiLoadStart) / 1000).toFixed(0);
-      window._updateAILoadingProgress && window._updateAILoadingProgress(50, '加载AI推理引擎(WASM)... ' + elapsedSec + 's');
+      window._updateAILoadingProgress && window._updateAILoadingProgress(50, '加载AI推理引擎(WASM)...');
       const vision = await window.FilesetResolver.forVisionTasks(
-        'https://fastly.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm'
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm'
       );
       console.log('MediaPipe: WASM加载完成，开始加载模型...');
       // 进度：阶段4 - 加载面部检测模型
       window._updateAILoadingProgress && window._updateAILoadingProgress(70, '加载468点面部关键点模型...');
       if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: AI模型加载中 (70%)...';
 
-      // 检测是否为 file:// 协议，若是则用 base64 内嵌模型绕过 CORS
-      let modelPath = 'face_landmarker.task';
-      if (location.protocol === 'file:') {
-        // file:// 协议下用 base64 内嵌模型
-        if (window._faceLandmarkerModelBase64) {
-          console.log('MediaPipe: 使用base64模型创建Blob URL (file://)');
-          const binaryStr = atob(window._faceLandmarkerModelBase64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-          const blob = new Blob([bytes], { type: 'application/octet-stream' });
-          modelPath = URL.createObjectURL(blob);
-        } else {
-          console.warn('MediaPipe: file://协议且无内嵌模型，将使用像素分析降级');
-        }
+      // 使用缓存机制加载模型
+      var modelResult = await loadModelWithCache();
+      var modelPath = modelResult.url;
+      _blobUrlToRevoke = modelResult.url;
+      if (modelResult.fromCache) {
+        console.log('MediaPipe: 使用本地缓存的模型（秒加载）');
+        window._updateAILoadingProgress && window._updateAILoadingProgress(85, '从本地缓存加载模型...');
       } else {
-        // https/http 协议：多 CDN 回退加载模型
-        var modelUrls = [
-          'face_landmarker.task',  // 同域加载（PythonAnywhere 部署时最优）
-          'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web/face_landmarker.task',
-          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
-        ];
-        modelPath = await _loadModelWithFallback(modelUrls);
-        console.log('MediaPipe: 模型加载完成，来源: ' + (modelPath ? modelPath.substring(0,60) : 'unknown'));
+        console.log('MediaPipe: 使用新下载的模型');
       }
 
       // 先尝试GPU，失败后降级CPU（关闭不需要的blendshapes和transformation计算以提升性能）
@@ -1730,46 +1763,37 @@
           numFaces: 1
         });
       }
+      // 模型加载成功后释放blob URL，避免内存泄漏
+      if (_blobUrlToRevoke) { URL.revokeObjectURL(_blobUrlToRevoke); _blobUrlToRevoke = null; }
       if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: MediaPipe 468点3D面部关键点 + EAR几何计算 (已加载)';
       console.log('MediaPipe Face Landmarker 初始化成功');
-      // 计算加载耗时
-      var totalLoadTime = ((Date.now() - _aiLoadStart) / 1000).toFixed(1);
-      var isFast = parseFloat(totalLoadTime) < 3; // 3秒内视为已缓存
-      var doneMsg = isFast
-        ? 'AI模型就绪 (缓存加载 ' + totalLoadTime + 's)'
-        : 'AI模型加载完成，已自动缓存 (' + totalLoadTime + 's)';
       // 进度：完成！启用监测按钮
-      window._updateAILoadingProgress && window._updateAILoadingProgress(100, doneMsg);
+      window._updateAILoadingProgress && window._updateAILoadingProgress(100, 'AI模型加载完成，可以开始监测');
       window._enableStartButton && window._enableStartButton(true);
-      // 隐藏首次加载提示
-      var tipEl = document.getElementById('ai-first-load-tip');
-      if (tipEl) tipEl.style.display = 'none';
-      if (!isFast) {
-        // 首次加载完成，提示下次会更快
-        setTimeout(function() {
-          showAlert('AI模型已缓存，下次打开将秒开 (' + totalLoadTime + 's)', 'info', '&#x26A1;');
-        }, 500);
+      // 如果正在监测中，更新状态提示为AI模式
+      if (appState && appState.monitorActive) {
+        updateMonitorStatus('face', 'good', '画面分析: AI面部检测运行中');
+        updateMonitorStatus('ear', 'good', '眨眼检测: 运行中');
+        updateMonitorStatus('dist', 'good', '距离估算: 运行中');
+        updateMonitorStatus('posture', 'good', '坐姿检测: 运行中');
       }
-      return true;
-
-    } catch (err) {
-      console.error('[MediaPipe] 加载失败:', err);
-      var loadEl = document.getElementById('ai-loading-text');
-      if (loadEl) loadEl.textContent = 'AI模型加载失败，可使用基础监测模式';
-      var loadBar = document.getElementById('ai-loading-bar');
-      if (loadBar) loadBar.style.display = 'none';
-      var tipEl = document.getElementById('ai-first-load-tip');
-      if (tipEl) tipEl.style.display = 'none';
-      // 即使AI模型加载失败，也允许用户开始监测（降级为基础模式）
+    } catch(err) {
+      // 初始化失败时释放blob URL，避免内存泄漏
+      if (_blobUrlToRevoke) { URL.revokeObjectURL(_blobUrlToRevoke); }
+      console.warn('MediaPipe 初始化失败，将使用像素分析降级方案:', err.message || err);
+      if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: 像素分析模式（AI模型加载失败，已自动降级）';
+      // AI模型加载失败，也启用按钮（使用降级模式）
       window._updateAILoadingProgress && window._updateAILoadingProgress(100, 'AI加载失败，已切换到像素分析模式');
       window._enableStartButton && window._enableStartButton(true, '开启监测(降级模式)');
-      if (algoInfoEl) algoInfoEl.innerHTML = '&#x1F9E0; 算法: 像素分析模式（AI模型加载失败，已自动降级）';
       if (IS_MOBILE) {
         console.warn('移动端MediaPipe加载失败，可能是设备内存不足或网络问题，已自动降级为像素分析');
       }
-      return false;
     } finally {
       mediapipeInitializing = false;
+      // 初始化完成（无论成功或失败）后重置预初始化标志，允许后续重试
+      if (!faceLandmarker) {
+        window._mediapipePreinit = false;
+      }
     }
   }
 
@@ -5637,7 +5661,7 @@
 
 
   // API endpoint for online verification (configurable)
-  // API 基础地址：如果部署在 PythonAnywhere（前后端同域），则留空（同源请求，无需CORS）
+  // 智能检测：同域部署时 API_BASE_URL 留空（同源请求），跨域时自动指向 PythonAnywhere
   var _savedUrl = localStorage.getItem('eye_api_url');
   var API_BASE_URL = '';
   if (_savedUrl) {
@@ -5646,7 +5670,6 @@
     // GitHub Pages 等外部部署，需要指定后端地址
     API_BASE_URL = 'https://18073951649.pythonanywhere.com';
   }
-  // PythonAnywhere 同域部署时 API_BASE_URL = ''，请求自动发到当前域名
 
   function setApiUrl(url) {
     API_BASE_URL = url;
@@ -5710,7 +5733,7 @@
 
     msgEl.textContent = '正在联网验证...'; msgEl.style.color = 'var(--muted)';
 
-    // 强制联网验证（API_BASE_URL 为空时表示同源部署，也有效）
+    // 强制联网验证
     if (API_BASE_URL === null || API_BASE_URL === undefined) {
       msgEl.textContent = '未配置验证服务器，请联系管理员'; msgEl.style.color = 'var(--danger)'; return;
     }
@@ -5850,7 +5873,8 @@
   }
 
   var _freeTimerInterval = null, _freeSecondsRemaining = 0;
-  var _freeUsageReportTimer = null;
+  window._freeServerQueried = false; // 标记是否已向服务器查询过免费试用剩余时间
+  // _freeUsageReportTimer 在第5925行声明（联网免费试用追踪区域）
   var _pendingReportSeconds = 0; // 待上报的秒数（累计到整分钟再上报）
 
   // 获取今天的日期字符串（UTC+8，与服务器保持一致，防止跨时区日期错乱）
@@ -5865,42 +5889,29 @@
   function startFreeTimer() {
     if (isPro()) return;
     var today = _getTodayStrUTC8();
-
-    // 先从 localStorage 恢复已用时间（防止刷新后丢失）
-    var savedUsed = 0;
-    try {
-      var saved = localStorage.getItem('eyeguard_free_' + today);
-      if (saved) savedUsed = parseFloat(saved) || 0;
-    } catch(e) {}
-
     if (appState.freeMinutesDate !== today) {
-      // 新的一天，重置（但如果有 localStorage 记录就用它）
-      appState.freeMinutesUsedToday = savedUsed;
+      appState.freeMinutesUsedToday = 0;
       appState.freeMinutesDate = today;
-    } else if (savedUsed > appState.freeMinutesUsedToday) {
-      // localStorage 记录比 appState 更大（说明上次页面刷新前已保存），用 localStorage 的
-      appState.freeMinutesUsedToday = savedUsed;
     }
 
     // 联网查询服务器剩余时间（服务器为准，防止本地篡改）
     queryServerFreeUsage().then(function(serverUsedMinutes) {
-      // 以服务器记录的已用时间为准（服务器精确到0.1分钟）
-      // 如果联网失败(-1)，使用本地记录但标记为离线模式（降级，但仍可用）
+      var totalLimitSec = appState.freeDailyLimit * 60;
+      window._freeServerQueried = true;
+
       if (serverUsedMinutes < 0) {
-        // 联网失败，使用本地记录（优先 localStorage，再 appState）
+        // 联网失败（-1），使用本地记录（可被篡改但聊胜于无）
+        var savedUsed = 0;
+        try { var s = localStorage.getItem('eyeguard_free_' + today); if (s) savedUsed = parseFloat(s) || 0; } catch(e) {}
         var localUsed = Math.max(savedUsed, appState.freeMinutesUsedToday || 0);
-        _freeSecondsRemaining = Math.max(0, appState.freeDailyLimit * 60 - localUsed * 60);
+        _freeSecondsRemaining = Math.max(0, totalLimitSec - localUsed * 60);
+        appState.freeMinutesUsedToday = localUsed;
         console.warn('[免费试用] 联网查询失败，使用本地记录: 已用 ' + localUsed + ' 分钟');
-        // 不阻止监测，但标记离线模式
-        window._freeTimerOfflineMode = true;
-        window._freeServerQueried = true;
       } else {
-        window._freeTimerOfflineMode = false;
+        // 服务器查询成功，以服务器为准
         var serverUsedSec = Math.round(serverUsedMinutes * 60);
-        var totalLimitSec = appState.freeDailyLimit * 60;
         _freeSecondsRemaining = Math.max(0, totalLimitSec - serverUsedSec);
         appState.freeMinutesUsedToday = Math.ceil(serverUsedMinutes);
-        window._freeServerQueried = true;
       }
 
       var badge = document.getElementById('pro-timer-badge');
@@ -5921,10 +5932,6 @@
         _pendingReportSeconds++;
         appState.freeMinutesUsedToday = Math.ceil((totalLimitSec - _freeSecondsRemaining) / 60);
         updateFreeTimerDisplay();
-        // 立即保存到 localStorage（每次刷新都能恢复，防刷漏洞）
-        try {
-          localStorage.setItem('eyeguard_free_' + today, String(appState.freeMinutesUsedToday));
-        } catch(e) {}
         dbPut('settings', { key: 'freeTimeUsage', value: { date: today, minutes: appState.freeMinutesUsedToday } });
 
         // 每累计60秒，向服务器上报1分钟
@@ -6042,10 +6049,9 @@
         _serverFreeMinutesUsed = data.used_minutes;
         return data.used_minutes; // 返回已用分钟数
       }
-      return 0;
-    }).catch(function(err) {
-      console.error('[免费试用] 联网查询失败:', err);
-      return -1; // -1 表示查询失败
+      return -1; // 服务器返回失败，标记为未知
+    }).catch(function() {
+      return -1; // 网络错误，标记为未知（不能用0，否则断网=无限免费）
     });
   }
 
@@ -6179,11 +6185,6 @@ function isPro() {
       showAlert('当前无网络连接，请检查网络后重试', 'error', '&#x1F6AB;');
       return;
     }
-
-    // 显示"正在启动"状态
-    updateMonitorStatus('face', 'warn', '画面分析: 正在请求摄像头权限...');
-    var startBtn = document.getElementById('btn-start-monitor');
-    if (startBtn) { startBtn.textContent = '启动中...'; startBtn.style.pointerEvents = 'none'; startBtn.style.opacity = '0.6'; }
     const dev = appState.selectedMonitorDevice || 'laptop';
     if (!appState.devices[dev]) { showAlert('该设备已禁用', 'warn', '&#x26A0;'); return; }
     const def = DEVICE_DEFS[dev];
@@ -6222,45 +6223,30 @@ function isPro() {
         }
       } catch(e) {}
       const video = document.getElementById('monitor-video');
-      const phEl = document.getElementById('monitor-placeholder');
-      // 先隐藏占位符，再显示视频
-      if (phEl) phEl.style.display = 'none';
+      if (!video) { showAlert('监测视频元素未找到', 'error', '&#x26A0;'); return; }
       video.srcObject = stream;
-      video.muted = true;
-      video.playsInline = true;
-      // 使用 absolute 定位填满容器（不依赖 flex 布局）
+      // 移动端必须显式调用 play()
+      try { await video.play(); } catch(playErr) { console.warn('Video play error:', playErr); }
       video.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:1;';
+      var phEl = document.getElementById('monitor-placeholder'); if (phEl) phEl.style.display = 'none';
       var lbEl = document.getElementById('monitor-live-badge'); if (lbEl) lbEl.style.display = 'block';
       var slEl = document.getElementById('monitor-scan-line'); if (slEl) slEl.style.display = 'block';
 
-      updateMonitorStatus('face', 'warn', '画面分析: 等待摄像头画面...');
-
-      // 等待视频真正可以播放（readyState >= 2 = HAVE_CURRENT_DATA）
-      await new Promise(function(resolve) {
-        if (video.readyState >= 2) { resolve(); return; }
-        video.onloadeddata = function() { resolve(); };
-        // 超时 10 秒兜底
-        setTimeout(resolve, 10000);
-      });
-
-      try { await video.play(); } catch(playErr) {
-        console.warn('Video play error:', playErr);
-        // 自动播放被拒绝，尝试 muted play
-        video.muted = true;
-        try { await video.play(); } catch(e2) {
-          showAlert('无法播放摄像头画面，请检查浏览器权限设置', 'error', '📷');
-          return;
-        }
-      }
-
       var canvasEl = document.getElementById('monitor-overlay-canvas');
       monitorCanvasCtx = canvasEl ? canvasEl.getContext('2d') : null;
-      const canvas = document.getElementById('monitor-overlay-canvas');
-      // 使用视频实际尺寸（已等待 loadeddata，videoWidth/videoHeight 有效）
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      canvas.style.width = video.videoWidth ? (video.videoWidth + 'px') : '640px';
-      canvas.style.height = video.videoHeight ? (video.videoHeight + 'px') : '480px';
+      // 等待视频元数据加载完成后再设置canvas尺寸（移动端尤其重要）
+      if (canvasEl) {
+      if (video.readyState >= 1) {
+        canvasEl.width = video.videoWidth || 640;
+        canvasEl.height = video.videoHeight || 480;
+      } else {
+        canvasEl.width = 640; canvasEl.height = 480;
+        video.onloadedmetadata = function() {
+          canvasEl.width = video.videoWidth || 640;
+          canvasEl.height = video.videoHeight || 480;
+        };
+      }
+      }
 
       appState.monitorActive = true;
       appState.connectedDevices[dev] = true;
@@ -6442,7 +6428,7 @@ function isPro() {
         updateProUI();
         startFreeTimer();
       }
-      if (!isPro() && typeof _freeSecondsRemaining !== 'undefined' && _freeSecondsRemaining <= 0 && !window._freeTimerOfflineMode && window._freeServerQueried) {
+      if (!isPro() && typeof _freeSecondsRemaining !== 'undefined' && _freeSecondsRemaining <= 0 && window._freeServerQueried) {
         stopMonitoring();
         showAlert('会员已到期，且今日免费试用时间已用完，请升级Pro或明天再试', 'warn', '\u23F0');
         return;
@@ -7119,9 +7105,10 @@ function isPro() {
     window._lastStableDist = undefined;
     window._lastStablePosture = undefined;
     window._lastStableEAR = undefined;
+    window._freeServerQueried = false; // 下次启动监测时重新查询服务器
     // 清理视频和canvas
     const video = document.getElementById('monitor-video');
-    if (video) { video.srcObject = null; video.style.display = 'none'; video.onloadedmetadata = null; }
+    if (video) { video.srcObject = null; video.style.cssText = 'display:none;'; video.onloadedmetadata = null; }
     var ph = document.getElementById('monitor-placeholder'); if (ph) ph.style.display = '';
     var lb = document.getElementById('monitor-live-badge'); if (lb) lb.style.display = 'none';
     var sl = document.getElementById('monitor-scan-line'); if (sl) sl.style.display = 'none';
@@ -7240,16 +7227,15 @@ function isPro() {
       } else {
         btn.textContent = '显示识别框';
         btn.style.background = 'rgba(140,130,115,0.6)';
-        // 立即清除识别框，不等下一帧
-        var canvas = document.getElementById('monitor-overlay-canvas');
-        if (canvas && canvas.getContext) {
-          var ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
       }
-      // 按钮闪烁反馈（让用户知道点击生效了）
-      btn.style.transform = 'scale(0.95)';
-      setTimeout(function() { btn.style.transform = ''; }, 150);
+    }
+    // 隐藏时立即清除canvas
+    if (!window._showFaceBox) {
+      var canvas = document.getElementById('monitor-overlay-canvas');
+      if (canvas) {
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
     }
   }
 
@@ -8499,6 +8485,12 @@ function isPro() {
         }
       }
     } catch(kpiErr) { console.warn('KPI更新失败:', kpiErr); }
+
+    // init 末尾：自动预加载 AI 模型（不阻塞用户操作）
+    if (typeof initFaceLandmarker === 'function' && !faceLandmarker && !window._mediapipePreinit) {
+      window._mediapipePreinit = true;
+      setTimeout(function() { initFaceLandmarker(); }, 500);
+    }
   }
 
   // Start app
