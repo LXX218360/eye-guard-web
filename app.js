@@ -5892,12 +5892,14 @@
         console.warn('[免费试用] 联网查询失败，使用本地记录: 已用 ' + localUsed + ' 分钟');
         // 不阻止监测，但标记离线模式
         window._freeTimerOfflineMode = true;
+        window._freeServerQueried = true;
       } else {
         window._freeTimerOfflineMode = false;
         var serverUsedSec = Math.round(serverUsedMinutes * 60);
         var totalLimitSec = appState.freeDailyLimit * 60;
         _freeSecondsRemaining = Math.max(0, totalLimitSec - serverUsedSec);
         appState.freeMinutesUsedToday = Math.ceil(serverUsedMinutes);
+        window._freeServerQueried = true;
       }
 
       var badge = document.getElementById('pro-timer-badge');
@@ -6439,7 +6441,7 @@ function isPro() {
         updateProUI();
         startFreeTimer();
       }
-      if (!isPro() && typeof _freeSecondsRemaining !== 'undefined' && _freeSecondsRemaining <= 0) {
+      if (!isPro() && typeof _freeSecondsRemaining !== 'undefined' && _freeSecondsRemaining <= 0 && !window._freeTimerOfflineMode && window._freeServerQueried) {
         stopMonitoring();
         showAlert('会员已到期，且今日免费试用时间已用完，请升级Pro或明天再试', 'warn', '\u23F0');
         return;
