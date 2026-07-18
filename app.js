@@ -6352,7 +6352,7 @@ function isPro() {
       showAlert(hint, 'danger', '摄像头错误');
       appState.monitorActive = false;
       var startBtn2 = document.getElementById('btn-start-monitor');
-      if (startBtn2) { startBtn2.textContent = '开启监测'; startBtn2.onclick = startMonitoring; }
+      if (startBtn2) { startBtn2.textContent = '开启监测'; startBtn2.onclick = startMonitoring; startBtn2.disabled = false; startBtn2.style.opacity = '1'; startBtn2.style.cursor = 'pointer'; }
       var stopBtn2 = document.getElementById('btn-stop-monitor');
       if (stopBtn2) stopBtn2.style.display = 'none';
       updateMonitorStatus('face', 'bad', '面部检测: 权限不足');
@@ -7123,12 +7123,14 @@ function isPro() {
     if (faceBox) faceBox.style.display = 'none';
     var liveDot2 = document.getElementById('dashboard-live-dot');
     if (liveDot2) { liveDot2.classList.remove('active'); liveDot2.classList.add('inactive'); }
-    // 恢复按钮文本
+    // 恢复按钮文本和样式
     var startBtn = document.getElementById('btn-start-monitor');
     if (startBtn) {
       startBtn.textContent = '开启监测';
       startBtn.onclick = startMonitoring;
       startBtn.disabled = false;
+      startBtn.style.opacity = '1';
+      startBtn.style.cursor = 'pointer';
     }
     var stopMonitorBtn = document.getElementById('btn-stop-monitor');
     if (stopMonitorBtn) stopMonitorBtn.style.display = 'none';
