@@ -103,8 +103,13 @@ function fetchSigningKey() {
 }
 
 function hmacSha256(message, secret) {
-  // 纯JS HMAC-SHA256 实现
-  function sha256(msg) {
+  // 纯JS HMAC-SHA256 实现（使用 TextEncoder 处理 UTF-8 多字节字符）
+  function strToBytes(str) {
+    // 将 JS 字符串（UTF-16）转换为 UTF-8 字节数组
+    var encoder = new TextEncoder();
+    return Array.from(encoder.encode(str));
+  }
+  function sha256(msgBytes) {
     function rShift(n, b) { return (n >>> b) | (n << (32 - b)); }
     function toHex(n) { for (var h='', i=7; i>=0; i--) { var v = (n >>> (i*4)) & 0xf; h += v.toString(16); } return h; }
     var K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
@@ -116,12 +121,16 @@ function hmacSha256(message, secret) {
              0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
              0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
     var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
-    var M = [], l = msg.length * 8, i;
-    for (i=0; i<msg.length; i++) M[i>>2] |= (msg.charCodeAt(i) & 0xff) << (24 - (i%4)*8);
-    M[i>>2] |= 0x80 << (24 - (i%4)*8);
-    M[((l+64>>9)<<4)+15] = l;
-    for (var b=0; b<M.length; b+=16) {
-      var W = M.slice(b, b+16);
+    var l = msgBytes.length * 8;
+    // 填充
+    var padded = msgBytes.slice();
+    padded.push(0x80);
+    while ((padded.length % 64) !== 56) padded.push(0);
+    // 追加长度（64位大端）
+    for (var i = 7; i >= 0; i--) padded.push((l / Math.pow(2, i * 8)) & 0xff);
+    for (var b=0; b<padded.length; b+=64) {
+      var W = [];
+      for (var j=0; j<16; j++) W[j] = (padded[b+j*4]<<24) | (padded[b+j*4+1]<<16) | (padded[b+j*4+2]<<8) | padded[b+j*4+3];
       for (var t=16; t<64; t++) {
         var s0 = rShift(W[t-15], 7) ^ rShift(W[t-15], 18) ^ (W[t-15] >>> 3);
         var s1 = rShift(W[t-2], 17) ^ rShift(W[t-2], 19) ^ (W[t-2] >>> 10);
@@ -145,27 +154,24 @@ function hmacSha256(message, secret) {
     for (i=0; i<8; i++) result += toHex(H[i]);
     return result;
   }
-  function hmacInner(key, msg) {
-    var keyBytes = [];
-    if (key.length > 64) {
-      key = sha256(key);
-      for (var i=0; i<32; i++) keyBytes.push(parseInt(key.substr(i*2,2),16));
-    } else {
-      for (var i=0; i<key.length; i++) keyBytes.push(key.charCodeAt(i));
+  function hmacInner(keyBytes, msgBytes) {
+    if (keyBytes.length > 64) {
+      var hashHex = sha256(keyBytes);
+      keyBytes = [];
+      for (var i=0; i<32; i++) keyBytes.push(parseInt(hashHex.substr(i*2,2),16));
     }
     while (keyBytes.length < 64) keyBytes.push(0);
     var oPad = [], iPad = [];
     for (var i=0; i<64; i++) { oPad.push(keyBytes[i] ^ 0x5c); iPad.push(keyBytes[i] ^ 0x36); }
-    var innerMsg = '';
-    for (var i=0; i<64; i++) innerMsg += String.fromCharCode(iPad[i]);
-    innerMsg += msg;
-    var innerHash = sha256(innerMsg);
-    var outerMsg = '';
-    for (var i=0; i<64; i++) outerMsg += String.fromCharCode(oPad[i]);
-    outerMsg += innerHash;
-    return sha256(outerMsg);
+    var innerBytes = iPad.concat(msgBytes);
+    var innerHash = sha256(innerBytes);
+    // 将hex字符串转为字节数组
+    var hashBytes = [];
+    for (var i=0; i<32; i++) hashBytes.push(parseInt(innerHash.substr(i*2,2),16));
+    var outerBytes = oPad.concat(hashBytes);
+    return sha256(outerBytes);
   }
-  return hmacInner(secret, message);
+  return hmacInner(strToBytes(secret), strToBytes(message));
 }
 
 function verifyApiResponse(data) {
