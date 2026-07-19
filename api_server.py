@@ -117,15 +117,18 @@ def add_cors_and_sign(resp):
     resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     resp.headers['Access-Control-Max-Age'] = '86400'
 
-    # 自动对 JSON 响应添加 HMAC 签名
+    # 自动对 JSON 响应添加 HMAC 签名，并确保序列化格式与签名一致（无空格分隔符）
     if resp.content_type and resp.content_type.startswith('application/json'):
         try:
             body = resp.get_data(as_text=True)
             data = json.loads(body)
             path = request.path if hasattr(request, 'path') else ''
-            if '_sig' not in data and '/api/pubkey' not in path:
-                data = sign_response(data)
-                new_body = json.dumps(data, ensure_ascii=False, default=str, sort_keys=True)
+            if '/api/pubkey' not in path:
+                if '_sig' not in data:
+                    data = sign_response(data)
+                # 无论签名是刚生成还是已有，都强制用无空格分隔符重新序列化
+                # 确保实际输出与 sign_response 签名时使用的格式一致
+                new_body = json.dumps(data, ensure_ascii=False, default=str, sort_keys=True, separators=(',', ':'))
                 resp.set_data(new_body)
                 resp.headers['Content-Type'] = 'application/json; charset=utf-8'
         except Exception:
