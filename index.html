@@ -126,8 +126,18 @@ function hmacSha256(message, secret) {
     var padded = msgBytes.slice();
     padded.push(0x80);
     while ((padded.length % 64) !== 56) padded.push(0);
-    // 追加长度（64位大端）
-    for (var i = 7; i >= 0; i--) padded.push((l / Math.pow(2, i * 8)) & 0xff);
+    // 追加长度（64位大端，高32位在前）
+    // JavaScript位运算限制32位，分高低两部分
+    var lHi = (l - (l & 0xffffffff)) / 4294967296;
+    var lLo = l >>> 0;  // 转为无符号32位
+    padded.push((lHi >>> 24) & 0xff);
+    padded.push((lHi >>> 16) & 0xff);
+    padded.push((lHi >>> 8) & 0xff);
+    padded.push(lHi & 0xff);
+    padded.push((lLo >>> 24) & 0xff);
+    padded.push((lLo >>> 16) & 0xff);
+    padded.push((lLo >>> 8) & 0xff);
+    padded.push(lLo & 0xff);
     for (var b=0; b<padded.length; b+=64) {
       var W = [];
       for (var j=0; j<16; j++) W[j] = (padded[b+j*4]<<24) | (padded[b+j*4+1]<<16) | (padded[b+j*4+2]<<8) | padded[b+j*4+3];
