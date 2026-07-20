@@ -6262,6 +6262,21 @@ function isPro() {
     try {
       // 先停止旧摄像头流（防止泄漏）
       if (monitorStream) { try { monitorStream.getTracks().forEach(t => t.stop()); } catch(e) {} monitorStream = null; }
+      // 预检查摄像头权限状态：如果已被永久拒绝，提示用户手动开启，不再自动弹窗请求
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const permStatus = await navigator.permissions.query({name: 'camera'});
+          if (permStatus.state === 'denied') {
+            showAlert('摄像头权限已被拒绝，请在浏览器地址栏左侧的权限图标中允许摄像头访问', 'warn', '&#x26A0;');
+            appState.permissions.camera = 'denied';
+            await dbPut('settings', { key:'permissions', data: appState.permissions });
+            refreshDeviceCards();
+            var camToggle = document.querySelector('[data-perm="camera"]');
+            if (camToggle) camToggle.classList.remove('active');
+            return;
+          }
+        } catch(e) {}
+      }
       console.log('[权限] 正在请求摄像头权限...');
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const stream = await navigator.mediaDevices.getUserMedia({
