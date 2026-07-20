@@ -992,9 +992,17 @@
           appState.permissions.usb = 'granted';
           toggle.classList.add('active');
         } else if (perm === 'notification') {
-          const result = await Notification.requestPermission();
-          appState.permissions.notification = result;
-          if (result === 'granted') toggle.classList.add('active');
+          var notifResult2;
+          if ((typeof Notification !== 'undefined') && typeof Notification.requestPermission === 'function') {
+            var req2 = Notification.requestPermission();
+            if (req2 && typeof req2.then === 'function') {
+              notifResult2 = await req2;
+            } else {
+              notifResult2 = req2;
+            }
+          }
+          appState.permissions.notification = notifResult2 || 'default';
+          if (notifResult2 === 'granted') toggle.classList.add('active');
           else { toggle.classList.remove('active'); errEl.textContent = '通知权限被拒绝'; errEl.classList.add('show'); }
         }
         await dbPut('settings', { key:'permissions', data: appState.permissions });
@@ -6168,7 +6176,7 @@ function isPro() {
       // 检查是否需要请求任何权限（camera 或 notification 仍为 default/prompt 状态）
       var needCam = (!appState.permissions.camera || appState.permissions.camera === 'prompt' || appState.permissions.camera === 'default');
       var camPerm = (navigator.permissions && navigator.permissions.query) ? null : null; // 部分浏览器不支持查询摄像头权限
-      var needNotif = Notification && Notification.permission === 'default';
+      var needNotif = (typeof Notification !== 'undefined') && Notification.permission === 'default';
       var needGuide = needCam || needNotif;
       console.log('[权限引导] needCamera=' + needCam + ', needNotification=' + needNotif + ', needGuide=' + needGuide);
 
@@ -6226,11 +6234,19 @@ function isPro() {
     }
     // 首次使用时显示权限引导弹窗，等待用户确认后再请求权限
     await _showPermissionGuideAndRequest();
-    // 请求通知权限
+    // 请求通知权限（兼容旧版浏览器：有的返回 Promise，有的用回调）
     try {
-      if (Notification && Notification.permission === 'default') {
+      if ((typeof Notification !== 'undefined') && Notification.permission === 'default') {
         console.log('[权限] 正在请求通知权限...');
-        var notifResult = await Notification.requestPermission();
+        var notifResult;
+        if (typeof Notification.requestPermission === 'function') {
+          var req = Notification.requestPermission();
+          if (req && typeof req.then === 'function') {
+            notifResult = await req;
+          } else {
+            notifResult = req;
+          }
+        }
         console.log('[权限] 通知权限结果:', notifResult);
       }
     } catch(e) { console.warn('[权限] 通知权限请求异常:', e); }
@@ -7229,7 +7245,7 @@ function isPro() {
           addMonitorLog('warning', '提醒: ' + (metricNameCN[metricName] || metricName) + ' 持续异常超过 ' + threshold + '秒');
           // 桌面通知弹窗（即使最小化也能看到）
           try {
-            if (Notification && Notification.permission === 'granted') {
+            if ((typeof Notification !== 'undefined') && Notification.permission === 'granted') {
               var notifyMetric = metricNameCN[metricName] || metricName;
               var n = new Notification('\u62A4\u773C\u7CBE\u7075 - \u7528\u773C\u9884\u8B66', {
                 body: notifyMetric + ' 持\u7EED\u5F02\u5E38\u8D85\u8FC7 ' + threshold + '\u79D2\uFF0C\u8BF7\u53CA\u65F6\u8C03\u6574\uFF01',
@@ -7239,9 +7255,11 @@ function isPro() {
                 silent: false
               });
               setTimeout(function() { n.close(); }, 8000);
-            } else if (Notification && Notification.permission !== 'denied') {
-              // 权限尚未授予，再次请求
-              Notification.requestPermission();
+            } else if ((typeof Notification !== 'undefined') && Notification.permission !== 'denied') {
+              // 权限尚未授予，再次请求（不阻塞，不等待结果）
+              if (typeof Notification.requestPermission === 'function') {
+                Notification.requestPermission();
+              }
             }
           } catch(e) {}
         }
