@@ -8492,7 +8492,7 @@ function isPro() {
   // 启动时后台检查 GitHub 是否有更新版本（静默，不阻塞用户操作）
   (function checkForUpdate() {
     try {
-      var GITHUB_APP_URL = 'https://raw.githubusercontent.com/LXX218360/eye-guard-web/main/app.js';
+      var GITHUB_APP_URL = 'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web@main/app.js';
       fetch(GITHUB_APP_URL, { method: 'HEAD', cache: 'no-store' })
         .then(function(resp) {
           var remoteLen = parseInt(resp.headers.get('content-length') || '0', 10);
