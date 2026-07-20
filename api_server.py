@@ -853,6 +853,57 @@ def api_health():
     return jsonify({'status': 'ok', 'time': time.time()})
 
 # ============================================================
+# 管理接口：查看和操作数据库
+# ============================================================
+
+@app.route('/admin/db', methods=['GET', 'POST'])
+def admin_db():
+    """查看数据库内容 / 操作数据库（重置某手机号的会员状态）
+    GET: 查看所有激活码
+    POST: {"action":"reset_phone","phone":"xxx"} 清除某手机号的所有激活
+    """
+    password = request.args.get('pwd') or (request.get_json(silent=True) or {}).get('pwd', '')
+    if not check_password(password):
+        return jsonify({'error': '需要密码'}), 403
+
+    db = _load_db_raw()
+
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        action = body.get('action', '')
+        if action == 'reset_phone':
+            phone = body.get('phone', '').strip()
+            if not phone:
+                return jsonify({'error': '缺少 phone 参数'}), 400
+            reset_count = 0
+            for c, r in db.items():
+                if c.startswith('_'):
+                    continue
+                if r.get('phone') == phone and r.get('used'):
+                    r['used'] = False
+                    r['revoked_at'] = time.time()
+                    r.pop('activated_at', None)
+                    reset_count += 1
+            save_db(db)
+            return jsonify({'success': True, 'msg': f'已重置 {phone} 的 {reset_count} 个激活码'})
+        return jsonify({'error': '未知操作'}), 400
+
+    # GET: 返回数据库摘要（隐藏完整激活码）
+    summary = {}
+    for c, r in db.items():
+        if c.startswith('_'):
+            continue
+        masked = c[:4] + '****' + c[-4:] if len(c) > 8 else c
+        summary[masked] = {
+            'used': r.get('used', False),
+            'phone': (r.get('phone', '')[:3] + '****' + r.get('phone', '')[-4:]) if r.get('phone') else '',
+            'plan': r.get('plan', ''),
+            'revoked': bool(r.get('revoked_at')),
+            'activated_at': r.get('activated_at')
+        }
+    return jsonify({'total': len(summary), 'codes': summary})
+
+# ============================================================
 # 管理接口：从 GitHub 同步最新文件（免手动上传，直连 GitHub raw）
 # ============================================================
 
