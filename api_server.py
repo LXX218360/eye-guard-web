@@ -863,6 +863,23 @@ def admin_update():
     if not check_password(password):
         return jsonify({'error': '需要密码'}), 403
 
+    # 支持直接上传：POST JSON body 中带 files 字段，绕过 CDN 缓存
+    body = request.get_json(silent=True) or {}
+    if body.get('direct'):
+        results = {}
+        for fname, content_b64 in body.get('files', {}).items():
+            try:
+                import base64
+                content = base64.b64decode(content_b64)
+                for target_dir in [WWW_DIR, BASE_DIR]:
+                    fpath = os.path.join(target_dir, fname)
+                    with open(fpath, 'wb') as f:
+                        f.write(content)
+                results[fname] = f'OK ({len(content)} bytes)'
+            except Exception as e:
+                results[fname] = f'FAIL: {str(e)[:100]}'
+        return jsonify({'success': True, 'results': results})
+
     # GitHub 仓库中的前端文件（通过 jsdelivr CDN 代理，国内可访问）
     base_url = 'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web@main/'
     files_to_sync = ['app.js', 'index.html', 'style.css', 'hmac-security.js']
