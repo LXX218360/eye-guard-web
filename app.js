@@ -953,11 +953,16 @@
       const errEl = document.getElementById('perm-error-' + perm);
       if (errEl) { errEl.classList.remove('show'); errEl.textContent = ''; }
 
-      // 如果已经授权，再次点击=关闭权限（仅记录状态）
+      // 如果已经授权，再次点击=关闭权限
       if (appState.permissions[perm] === 'granted') {
         appState.permissions[perm] = 'denied';
         toggle.classList.remove('active');
         await dbPut('settings', { key:'permissions', data: appState.permissions });
+        // 如果关闭的是摄像头权限且监测正在运行，立即停止监测并释放摄像头流
+        if (perm === 'camera' && appState.monitorActive) {
+          try { stopMonitoring(); } catch(e) { console.warn('停止监测失败:', e); }
+          showAlert('摄像头权限已关闭，监测已自动停止', 'warn', '&#x26A0;');
+        }
         return;
       }
 
@@ -6242,6 +6247,11 @@ function isPro() {
   async function startMonitoring() {
     // 防止重复调用
     if (appState.monitorActive) { showAlert('监测已在运行中', 'warn', '&#x26A0;'); return; }
+    // 检查应用内摄像头权限状态：如果用户在设置中主动关闭了摄像头权限，不自动请求
+    if (appState.permissions.camera === 'denied') {
+      showAlert('摄像头权限已在设置中关闭，请先在设置中重新开启摄像头权限', 'warn', '&#x26A0;');
+      return;
+    }
     // 联网检查：必须联网才能开始监测
     if (!navigator.onLine) {
       showAlert('当前无网络连接，请检查网络后重试', 'error', '&#x1F6AB;');
