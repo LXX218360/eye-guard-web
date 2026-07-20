@@ -6204,11 +6204,11 @@ function isPro() {
   };
 
   // 权限引导弹窗：首次使用时提示用户即将请求摄像头和通知权限
+  // 修复：合并引导弹窗和实际权限请求，避免用户需要点击两次（弹窗确认+浏览器授权）
   function _showPermissionGuideAndRequest() {
     return new Promise(function(resolve) {
       // 检查是否需要请求任何权限（camera 或 notification 仍为 default/prompt 状态）
       var needCam = (!appState.permissions.camera || appState.permissions.camera === 'prompt' || appState.permissions.camera === 'default');
-      var camPerm = (navigator.permissions && navigator.permissions.query) ? null : null; // 部分浏览器不支持查询摄像头权限
       var needNotif = (typeof Notification !== 'undefined') && Notification.permission === 'default';
       var needGuide = needCam || needNotif;
       console.log('[权限引导] needCamera=' + needCam + ', needNotification=' + needNotif + ', needGuide=' + needGuide);
@@ -6230,7 +6230,7 @@ function isPro() {
       var guideHTML = '<div style="text-align:center;margin-bottom:16px;">'
         + '<div style="font-size:2rem;margin-bottom:8px;">&#x1F6E1;</div>'
         + '<div style="font-size:1rem;font-weight:600;color:var(--ink);margin-bottom:4px;">需要授权以下权限</div>'
-        + '<div style="font-size:0.78rem;color:var(--muted);">浏览器将弹出授权请求，请点击"允许"</div>'
+        + '<div style="font-size:0.78rem;color:var(--muted);">点击下方按钮后，浏览器将弹出授权请求</div>'
         + '</div>'
         + '<div style="background:var(--bg-card);border-radius:10px;padding:14px;margin-bottom:16px;">'
         + items.map(function(item) {
@@ -6242,11 +6242,48 @@ function isPro() {
       showModal(
         '权限授权',
         '',
-        '开始授权',
+        '立即授权',
         false,
         function() {
-          // 用户点击"开始授权"后，浏览器会依次弹出权限请求
-          resolve();
+          // 用户点击"立即授权"后，依次请求摄像头和通知权限（合并在引导弹窗内完成）
+          var camPromise = Promise.resolve();
+          if (needCam) {
+            camPromise = (async function() {
+              try {
+                console.log('[权限引导] 正在请求摄像头权限...');
+                var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                var stream = await navigator.mediaDevices.getUserMedia({
+                  video: { facingMode: 'user', width: isMobile ? { ideal: 720, max: 1280 } : { ideal: 640, max: 1920 }, height: isMobile ? { ideal: 960, max: 1280 } : { ideal: 480, max: 1080 } }
+                });
+                // 获取成功后立即释放（startMonitoring 会重新获取）
+                stream.getTracks().forEach(function(t) { t.stop(); });
+                appState.permissions.camera = 'granted';
+                await dbPut('settings', { key:'permissions', data: appState.permissions });
+                console.log('[权限引导] 摄像头权限已获取');
+              } catch(camErr) {
+                console.warn('[权限引导] 摄像头权限获取失败:', camErr.name, camErr.message);
+                if (camErr.name === 'NotAllowedError') {
+                  appState.permissions.camera = 'denied';
+                  await dbPut('settings', { key:'permissions', data: appState.permissions });
+                }
+              }
+            })();
+          }
+          var notifPromise = Promise.resolve();
+          if (needNotif && appState.permissions.autoRequestNotification !== false) {
+            notifPromise = (async function() {
+              try {
+                console.log('[权限引导] 正在请求通知权限...');
+                if (typeof Notification !== 'undefined' && Notification.requestPermission) {
+                  await Notification.requestPermission();
+                }
+              } catch(e) { console.warn('[权限引导] 通知权限请求异常:', e); }
+            })();
+          }
+          // 等待所有权限请求完成后继续
+          Promise.all([camPromise, notifPromise]).then(function() {
+            resolve();
+          });
         }
       );
       // 替换 modal-desc 内容为 HTML
@@ -6277,13 +6314,13 @@ function isPro() {
       showAlert('当前无网络连接，请检查网络后重试', 'error', '&#x1F6AB;');
       return;
     }
-    // 首次使用时显示权限引导弹窗，等待用户确认后再请求权限
+    // 首次使用时显示权限引导弹窗（内含摄像头和通知权限的合并请求，避免用户点击两次）
     await _showPermissionGuideAndRequest();
-    // 请求通知权限（仅在用户允许自动请求时）
+    // 通知权限已在引导弹窗中请求过，此处仅兜底（如果引导弹窗被跳过但通知仍为default）
     if (appState.permissions.autoRequestNotification !== false) {
       try {
         if ((typeof Notification !== 'undefined') && Notification.permission === 'default') {
-          console.log('[权限] 正在请求通知权限...');
+          console.log('[权限] 兜底：请求通知权限...');
           var notifResult;
           if (typeof Notification.requestPermission === 'function') {
             var req = Notification.requestPermission();
