@@ -6269,6 +6269,21 @@ function isPro() {
       });
       console.log('[权限] 摄像头权限已获取，stream tracks:', stream.getTracks().length);
       monitorStream = stream;
+      // 监听摄像头权限被撤销（用户在浏览器设置中关闭权限）
+      stream.getVideoTracks().forEach(function(track) {
+        track.onended = function() {
+          console.warn('[摄像头] 视频流已结束（权限可能被撤销）');
+          if (appState.monitorActive) {
+            stopMonitoring();
+            showAlert('摄像头权限已变更，监测已自动停止', 'warn', '&#x26A0;');
+            appState.permissions.camera = 'prompt';
+            dbPut('settings', { key:'permissions', data: appState.permissions });
+            refreshDeviceCards();
+            var camToggle = document.querySelector('[data-perm="camera"]');
+            if (camToggle) camToggle.classList.remove('active');
+          }
+        };
+      });
       // 尝试获取摄像头实际焦距（用于精确FOV修正）
       window._cameraFocalLength = undefined;
       try {
@@ -6430,6 +6445,16 @@ function isPro() {
 
   async function runMonitorLoop(video) {
     try {
+    // 检查摄像头流是否仍然有效（用户可能在浏览器设置中撤销了权限）
+    if (monitorStream) {
+      var allEnded = monitorStream.getTracks().every(function(t) { return t.readyState === 'ended'; });
+      if (allEnded) {
+        console.warn('[监测] 检测到所有视频轨道已结束，停止监测');
+        stopMonitoring();
+        showAlert('摄像头权限已变更，监测已自动停止', 'warn', '&#x26A0;');
+        return;
+      }
+    }
     if (!appState.monitorActive || video.readyState < 2) {
       if (appState.monitorActive) monitorAnimFrame = setTimeout(() => runMonitorLoop(video), video.readyState < 2 ? 200 : 50);
       return;
