@@ -968,14 +968,27 @@
 
       try {
         if (perm === 'camera') {
-          // 只请求摄像头权限，获取流后立即释放，不搜索设备
-          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: isMobile ? { ideal: 720, max: 1280 } : { ideal: 640, max: 1920 }, height: isMobile ? { ideal: 960, max: 1280 } : { ideal: 480, max: 1080 } }
+          // 弹窗确认后再请求摄像头权限
+          showModal('请求摄像头权限', '护眼精灵需要使用摄像头来监测您的用眼健康状况。确认后将向浏览器请求摄像头访问权限。', '允许访问', false, async function() {
+            try {
+              const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: isMobile ? { ideal: 720, max: 1280 } : { ideal: 640, max: 1920 }, height: isMobile ? { ideal: 960, max: 1280 } : { ideal: 480, max: 1080 } }
+              });
+              stream.getTracks().forEach(t => t.stop());
+              appState.permissions.camera = 'granted';
+              toggle.classList.add('active');
+              await dbPut('settings', { key:'permissions', data: appState.permissions });
+              showAlert('摄像头权限已开启', 'info', '&#x2705;');
+            } catch(err) {
+              if (err.name === 'NotAllowedError' || err.name === 'NotFoundError') {
+                errEl.textContent = '用户取消了授权或浏览器不支持此API';
+              } else {
+                errEl.textContent = '错误：' + (err.message || err.name);
+              }
+              errEl.classList.add('show');
+            }
           });
-          stream.getTracks().forEach(t => t.stop());
-          appState.permissions.camera = 'granted';
-          toggle.classList.add('active');
         } else if (perm === 'bluetooth') {
           // 只检查蓝牙是否可用，不搜索设备
           const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -6247,9 +6260,16 @@ function isPro() {
   async function startMonitoring() {
     // 防止重复调用
     if (appState.monitorActive) { showAlert('监测已在运行中', 'warn', '&#x26A0;'); return; }
-    // 检查应用内摄像头权限状态：如果用户在设置中主动关闭了摄像头权限，不自动请求
+    // 检查应用内摄像头权限状态：如果用户在设置中主动关闭了摄像头权限，弹窗提示重新开启
     if (appState.permissions.camera === 'denied') {
-      showAlert('摄像头权限已在设置中关闭，请先在设置中重新开启摄像头权限', 'warn', '&#x26A0;');
+      showModal('摄像头权限已关闭', '您之前在设置中关闭了摄像头权限，监测需要摄像头才能工作。是否重新开启摄像头权限？', '重新开启', false, function() {
+        appState.permissions.camera = 'prompt';
+        dbPut('settings', { key:'permissions', data: appState.permissions });
+        var camToggle = document.querySelector('[data-perm="camera"]');
+        if (camToggle) camToggle.classList.remove('active');
+        // 递归调用 startMonitoring 继续流程
+        startMonitoring();
+      });
       return;
     }
     // 联网检查：必须联网才能开始监测
