@@ -21,11 +21,12 @@ if not os.path.isdir(WWW_DIR):
     os.makedirs(WWW_DIR, exist_ok=True)
 
 GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/LXX218360/eye-guard-web/main/'
-FRONTEND_FILES = ['app.js', 'index.html', 'style.css', 'hmac-security.js']
+FRONTEND_FILES = ['app.js', 'index.html', 'style.css', 'hmac-security.js', 'api_server.py']
 
 def _sync_frontend_from_github():
-    """启动时从 GitHub 同步最新前端文件（通过版本号判断是否需要更新）"""
-    import urllib.request
+    """启动时从 GitHub 同步最新文件（通过 MD5 哈希判断是否需要更新）
+    支持同步 api_server.py 自身：下载为 api_server.py.new，避免覆盖运行中进程"""
+    import urllib.request, hashlib
     for fname in FRONTEND_FILES:
         try:
             url = GITHUB_RAW_BASE + fname
@@ -35,30 +36,32 @@ def _sync_frontend_from_github():
             with urllib.request.urlopen(req, timeout=30) as resp:
                 content = resp.read()
             remote_size = len(content)
-            # 读取本地文件前500字节检查版本号
+            remote_hash = hashlib.md5(content).hexdigest()
+
+            # 检查本地文件是否需要更新
             need_update = not os.path.exists(local_path)
             if not need_update:
                 try:
                     with open(local_path, 'rb') as f:
-                        local_head = f.read(500).decode('utf-8', errors='ignore')
-                    remote_head = content[:500].decode('utf-8', errors='ignore')
-                    # 比较 Version: 行
-                    import re
-                    local_ver = re.search(r'Version:\s*([\d-]+v\d+)', local_head)
-                    remote_ver = re.search(r'Version:\s*([\d-]+v\d+)', remote_head)
-                    if remote_ver and local_ver:
-                        need_update = remote_ver.group(1) > local_ver.group(1)
-                    elif remote_ver and not local_ver:
-                        need_update = True  # 远程有版本号，本地没有
-                except:
-                    need_update = True  # 解析失败，强制更新
+                        local_hash = hashlib.md5(f.read()).hexdigest()
+                    need_update = local_hash != remote_hash
+                except Exception:
+                    need_update = True
+
             if need_update:
-                with open(local_path, 'wb') as f:
-                    f.write(content)
-                www_path = os.path.join(WWW_DIR, fname)
-                with open(www_path, 'wb') as f:
-                    f.write(content)
-                print(f'[同步] {fname}: 已更新 ({remote_size}B)')
+                # api_server.py 正在运行，不能直接覆盖；下载为 .new 文件，重启后生效
+                if fname == 'api_server.py':
+                    new_path = local_path + '.new'
+                    with open(new_path, 'wb') as f:
+                        f.write(content)
+                    print(f'[同步] {fname}: 已下载新版本 ({remote_size}B)，保存为 {fname}.new，重启后生效')
+                else:
+                    with open(local_path, 'wb') as f:
+                        f.write(content)
+                    www_path = os.path.join(WWW_DIR, fname)
+                    with open(www_path, 'wb') as f:
+                        f.write(content)
+                    print(f'[同步] {fname}: 已更新 ({remote_size}B)')
             else:
                 print(f'[同步] {fname}: 已是最新')
         except Exception as e:
@@ -850,20 +853,21 @@ def api_health():
     return jsonify({'status': 'ok', 'time': time.time()})
 
 # ============================================================
-# 管理接口：从 GitHub 同步最新前端文件（免手动上传）
+# 管理接口：从 GitHub 同步最新文件（免手动上传，直连 GitHub raw）
 # ============================================================
 
 @app.route('/admin/update', methods=['GET', 'POST'])
 def admin_update():
-    """从 GitHub 仓库同步最新前端文件到 PythonAnywhere
-    访问 https://18073951649.pythonanywhere.com/admin/update 即可触发
+    """从 GitHub 仓库同步最新文件到 PythonAnywhere
+    访问 https://18073951649.pythonanywhere.com/admin/update?pwd=你的密码 即可触发
+    改用 GitHub raw 直连，彻底避免 CDN 缓存问题
     """
-    import urllib.request
+    import urllib.request, hashlib
     password = request.args.get('pwd') or (request.get_json() or {}).get('pwd', '')
     if not check_password(password):
         return jsonify({'error': '需要密码'}), 403
 
-    # 支持直接上传：POST JSON body 中带 files 字段，绕过 CDN 缓存
+    # 支持直接上传：POST JSON body 中带 files 字段
     body = request.get_json(silent=True) or {}
     if body.get('direct'):
         results = {}
@@ -880,10 +884,9 @@ def admin_update():
                 results[fname] = f'FAIL: {str(e)[:100]}'
         return jsonify({'success': True, 'results': results})
 
-    # GitHub 仓库中的前端文件（通过 jsdelivr CDN 代理，国内可访问）
-    # 使用不带 @main 的 flat URL 避免 CDN 缓存问题
-    base_url = 'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web/'
-    files_to_sync = ['app.js', 'index.html', 'style.css', 'hmac-security.js']
+    # 使用 GitHub raw 直连下载（彻底避免 CDN 缓存）
+    base_url = 'https://raw.githubusercontent.com/LXX218360/eye-guard-web/main/'
+    files_to_sync = ['app.js', 'index.html', 'style.css', 'hmac-security.js', 'api_server.py']
     results = {}
     for fname in files_to_sync:
         try:
@@ -891,12 +894,21 @@ def admin_update():
             req = urllib.request.Request(url, headers={'User-Agent': 'PythonAnywhere-Update'})
             with urllib.request.urlopen(req, timeout=60) as resp:
                 content = resp.read()
-            # 同时写入 www/ 和根目录（兼容两种查找逻辑）
-            for target_dir in [WWW_DIR, BASE_DIR]:
-                fpath = os.path.join(target_dir, fname)
-                with open(fpath, 'wb') as f:
-                    f.write(content)
-            results[fname] = f'OK ({len(content)} bytes)'
+            remote_hash = hashlib.md5(content).hexdigest()
+
+            # api_server.py 正在运行，不能直接覆盖；下载为 .new 文件
+            if fname == 'api_server.py':
+                for target_dir in [WWW_DIR, BASE_DIR]:
+                    fpath = os.path.join(target_dir, fname + '.new')
+                    with open(fpath, 'wb') as f:
+                        f.write(content)
+                results[fname] = f'OK ({len(content)} bytes, hash={remote_hash}) -> saved as {fname}.new (需要重启)'
+            else:
+                for target_dir in [WWW_DIR, BASE_DIR]:
+                    fpath = os.path.join(target_dir, fname)
+                    with open(fpath, 'wb') as f:
+                        f.write(content)
+                results[fname] = f'OK ({len(content)} bytes, hash={remote_hash})'
         except Exception as e:
             results[fname] = f'FAIL: {str(e)[:100]}'
     return jsonify({'success': True, 'results': results})
