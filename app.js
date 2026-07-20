@@ -113,7 +113,7 @@
   let appState = {
     user: { nickname:'', role:'student', avatarColor:'linear-gradient(135deg,#c8874d,#5a8f6a)', firstTime:true, avatarImage:'' },
     devices: {},
-    permissions: { camera:'prompt', bluetooth:'prompt', usb:'prompt', notification:'default' },
+    permissions: { camera:'prompt', bluetooth:'prompt', usb:'prompt', notification:'default', autoRequestNotification: true },
     scene: 'office',
     thresholds: { distance:45, distanceWarn:55, intervalMin:0, intervalSec:30, interval:30, blink:10, blinkWarn:15, posture:70, postureWarn:80, ear:22, alertDuration:3 },
     alertSound: true,
@@ -992,18 +992,27 @@
           appState.permissions.usb = 'granted';
           toggle.classList.add('active');
         } else if (perm === 'notification') {
-          var notifResult2;
-          if ((typeof Notification !== 'undefined') && typeof Notification.requestPermission === 'function') {
-            var req2 = Notification.requestPermission();
-            if (req2 && typeof req2.then === 'function') {
-              notifResult2 = await req2;
-            } else {
-              notifResult2 = req2;
+          // 通知权限开关：控制是否"自动请求"通知权限
+          if (appState.permissions.autoRequestNotification) {
+            // 用户关闭自动请求通知权限
+            appState.permissions.autoRequestNotification = false;
+            toggle.classList.remove('active');
+          } else {
+            // 用户开启自动请求通知权限，立即尝试请求一次
+            appState.permissions.autoRequestNotification = true;
+            var notifResult2;
+            if ((typeof Notification !== 'undefined') && typeof Notification.requestPermission === 'function') {
+              var req2 = Notification.requestPermission();
+              if (req2 && typeof req2.then === 'function') {
+                notifResult2 = await req2;
+              } else {
+                notifResult2 = req2;
+              }
             }
+            appState.permissions.notification = notifResult2 || 'default';
+            if (notifResult2 === 'granted') toggle.classList.add('active');
+            else { toggle.classList.remove('active'); errEl.textContent = '通知权限被拒绝'; errEl.classList.add('show'); }
           }
-          appState.permissions.notification = notifResult2 || 'default';
-          if (notifResult2 === 'granted') toggle.classList.add('active');
-          else { toggle.classList.remove('active'); errEl.textContent = '通知权限被拒绝'; errEl.classList.add('show'); }
         }
         await dbPut('settings', { key:'permissions', data: appState.permissions });
       } catch(err) {
@@ -1022,7 +1031,13 @@
   function refreshPermissionToggles() {
     Object.keys(appState.permissions).forEach(perm => {
       const toggle = document.getElementById('perm-toggle-' + perm);
-      if (toggle) toggle.classList.toggle('active', appState.permissions[perm] === 'granted');
+      if (!toggle) return;
+      if (perm === 'notification') {
+        // 通知权限开关：表示是否允许自动请求通知权限
+        toggle.classList.toggle('active', appState.permissions.autoRequestNotification === true);
+      } else if (perm !== 'autoRequestNotification') {
+        toggle.classList.toggle('active', appState.permissions[perm] === 'granted');
+      }
     });
   }
 
@@ -6234,22 +6249,24 @@ function isPro() {
     }
     // 首次使用时显示权限引导弹窗，等待用户确认后再请求权限
     await _showPermissionGuideAndRequest();
-    // 请求通知权限（兼容旧版浏览器：有的返回 Promise，有的用回调）
-    try {
-      if ((typeof Notification !== 'undefined') && Notification.permission === 'default') {
-        console.log('[权限] 正在请求通知权限...');
-        var notifResult;
-        if (typeof Notification.requestPermission === 'function') {
-          var req = Notification.requestPermission();
-          if (req && typeof req.then === 'function') {
-            notifResult = await req;
-          } else {
-            notifResult = req;
+    // 请求通知权限（仅在用户允许自动请求时）
+    if (appState.permissions.autoRequestNotification !== false) {
+      try {
+        if ((typeof Notification !== 'undefined') && Notification.permission === 'default') {
+          console.log('[权限] 正在请求通知权限...');
+          var notifResult;
+          if (typeof Notification.requestPermission === 'function') {
+            var req = Notification.requestPermission();
+            if (req && typeof req.then === 'function') {
+              notifResult = await req;
+            } else {
+              notifResult = req;
+            }
           }
+          console.log('[权限] 通知权限结果:', notifResult);
         }
-        console.log('[权限] 通知权限结果:', notifResult);
-      }
-    } catch(e) { console.warn('[权限] 通知权限请求异常:', e); }
+      } catch(e) { console.warn('[权限] 通知权限请求异常:', e); }
+    }
     const dev = appState.selectedMonitorDevice || 'laptop';
     if (!appState.devices[dev]) { showAlert('该设备已禁用', 'warn', '&#x26A0;'); return; }
     const def = DEVICE_DEFS[dev];
@@ -7295,8 +7312,8 @@ function isPro() {
                 silent: false
               });
               setTimeout(function() { n.close(); }, 8000);
-            } else if ((typeof Notification !== 'undefined') && Notification.permission !== 'denied') {
-              // 权限尚未授予，再次请求（不阻塞，不等待结果）
+            } else if ((typeof Notification !== 'undefined') && Notification.permission === 'default' && appState.permissions.autoRequestNotification !== false) {
+              // 权限尚未授予，且用户允许自动请求，再次请求（不阻塞，不等待结果）
               if (typeof Notification.requestPermission === 'function') {
                 Notification.requestPermission();
               }
@@ -7581,6 +7598,16 @@ function isPro() {
     renderUserProfile();
     refreshDeviceCards();
     refreshPermissionToggles();
+    // 自动请求通知权限（如果用户设置了允许且尚未授予）
+    if (appState.permissions.autoRequestNotification !== false) {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        Notification.requestPermission().then(function(result) {
+          appState.permissions.notification = result;
+          dbPut('settings', { key:'permissions', data: appState.permissions });
+          refreshPermissionToggles();
+        }).catch(function() {});
+      }
+    }
     refreshSettingsDeviceList();
     refreshMonitorDeviceSelector();
     updateProUI();
