@@ -6162,13 +6162,61 @@ function isPro() {
     }
   };
 
-  async function startMonitoring() {
-    // 监测开始时自动请求通知权限（等待用户授权）
-    try {
-      if (Notification && Notification.permission === 'default') {
-        await Notification.requestPermission();
+  // 权限引导弹窗：首次使用时提示用户即将请求摄像头和通知权限
+  function _showPermissionGuideAndRequest() {
+    return new Promise(function(resolve) {
+      // 检查是否需要请求任何权限（camera 或 notification 仍为 default/prompt 状态）
+      var needCam = (!appState.permissions.camera || appState.permissions.camera === 'prompt' || appState.permissions.camera === 'default');
+      var camPerm = (navigator.permissions && navigator.permissions.query) ? null : null; // 部分浏览器不支持查询摄像头权限
+      var needNotif = Notification && Notification.permission === 'default';
+      var needGuide = needCam || needNotif;
+      console.log('[权限引导] needCamera=' + needCam + ', needNotification=' + needNotif + ', needGuide=' + needGuide);
+
+      if (!needGuide) {
+        // 所有权限已授权，直接继续
+        resolve();
+        return;
       }
-    } catch(e) {}
+
+      // 构建引导弹窗内容
+      var items = [];
+      if (needCam) {
+        items.push('&#x1F4F7; <b>摄像头权限</b> — 用于实时面部检测、距离和坐姿监测');
+      }
+      if (needNotif) {
+        items.push('&#x1F514; <b>通知权限</b> — 用于在用眼疲劳时推送提醒通知');
+      }
+      var guideHTML = '<div style="text-align:center;margin-bottom:16px;">'
+        + '<div style="font-size:2rem;margin-bottom:8px;">&#x1F6E1;</div>'
+        + '<div style="font-size:1rem;font-weight:600;color:var(--ink);margin-bottom:4px;">需要授权以下权限</div>'
+        + '<div style="font-size:0.78rem;color:var(--muted);">浏览器将弹出授权请求，请点击"允许"</div>'
+        + '</div>'
+        + '<div style="background:var(--bg-card);border-radius:10px;padding:14px;margin-bottom:16px;">'
+        + items.map(function(item) {
+          return '<div style="padding:8px 0;font-size:0.82rem;color:var(--ink);border-bottom:1px solid var(--border);">' + item + '</div>';
+        }).join('')
+        + '</div>'
+        + '<div style="font-size:0.72rem;color:var(--muted);text-align:center;">&#x1F512; 权限仅在本地使用，不会上传任何视频数据</div>';
+
+      showModal(
+        '权限授权',
+        '',
+        '开始授权',
+        false,
+        function() {
+          // 用户点击"开始授权"后，浏览器会依次弹出权限请求
+          resolve();
+        }
+      );
+      // 替换 modal-desc 内容为 HTML
+      var descEl = document.getElementById('modal-desc');
+      if (descEl) {
+        descEl.innerHTML = guideHTML;
+      }
+    });
+  }
+
+  async function startMonitoring() {
     // 防止重复调用
     if (appState.monitorActive) { showAlert('监测已在运行中', 'warn', '&#x26A0;'); return; }
     // 联网检查：必须联网才能开始监测
@@ -6176,6 +6224,16 @@ function isPro() {
       showAlert('当前无网络连接，请检查网络后重试', 'error', '&#x1F6AB;');
       return;
     }
+    // 首次使用时显示权限引导弹窗，等待用户确认后再请求权限
+    await _showPermissionGuideAndRequest();
+    // 请求通知权限
+    try {
+      if (Notification && Notification.permission === 'default') {
+        console.log('[权限] 正在请求通知权限...');
+        var notifResult = await Notification.requestPermission();
+        console.log('[权限] 通知权限结果:', notifResult);
+      }
+    } catch(e) { console.warn('[权限] 通知权限请求异常:', e); }
     const dev = appState.selectedMonitorDevice || 'laptop';
     if (!appState.devices[dev]) { showAlert('该设备已禁用', 'warn', '&#x26A0;'); return; }
     const def = DEVICE_DEFS[dev];
@@ -6188,10 +6246,12 @@ function isPro() {
     try {
       // 先停止旧摄像头流（防止泄漏）
       if (monitorStream) { try { monitorStream.getTracks().forEach(t => t.stop()); } catch(e) {} monitorStream = null; }
+      console.log('[权限] 正在请求摄像头权限...');
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: isMobile ? { ideal: 720, max: 1280 } : { ideal: 640, max: 1920 }, height: isMobile ? { ideal: 960, max: 1280 } : { ideal: 480, max: 1080 } }
       });
+      console.log('[权限] 摄像头权限已获取，stream tracks:', stream.getTracks().length);
       monitorStream = stream;
       // 尝试获取摄像头实际焦距（用于精确FOV修正）
       window._cameraFocalLength = undefined;
