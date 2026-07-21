@@ -4,6 +4,7 @@
       --accent: #2563eb; --accent2: #059669;
       --accent-light: rgba(37,99,235,0.08); --accent2-light: rgba(5,150,105,0.08);
       --danger: #ef4444; --warning: #f59e0b; --success: #059669; --purple: #7c3aed;
+      --warning-light: rgba(245,158,11,0.08);
       --card-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
       --card-shadow-hover: 0 8px 30px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.05);
       --glass-bg: rgba(255,255,255,0.75); --glass-border: rgba(255,255,255,0.50);
@@ -22,6 +23,7 @@
       --accent: #2563eb; --accent2: #059669;
       --accent-light: rgba(37,99,235,0.08); --accent2-light: rgba(5,150,105,0.08);
       --danger: #ef4444; --warning: #f59e0b; --success: #059669; --purple: #7c3aed;
+      --warning-light: rgba(245,158,11,0.08);
       --card-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
       --card-shadow-hover: 0 8px 30px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.05);
       --glass-bg: rgba(255,255,255,0.75); --glass-border: rgba(255,255,255,0.50);
@@ -36,6 +38,7 @@
       --accent: #3b82f6; --accent2: #10b981;
       --accent-light: rgba(59,130,246,0.12); --accent2-light: rgba(16,185,129,0.12);
       --danger: #f87171; --warning: #fbbf24; --success: #34d399; --purple: #a78bfa;
+      --warning-light: rgba(251,191,36,0.12);
       --card-shadow: 0 2px 16px rgba(0,0,0,0.30), 0 1px 4px rgba(0,0,0,0.20);
       --card-shadow-hover: 0 8px 32px rgba(0,0,0,0.40), 0 2px 8px rgba(0,0,0,0.25);
       --glass-bg: rgba(30,41,59,0.78); --glass-border: rgba(255,255,255,0.08);
@@ -1493,6 +1496,13 @@
       box-shadow: 0 4px 16px rgba(90,143,90,0.25) !important;
     }
     body.eye-care-mode .sidebar .eye-mode-label { color: var(--eye-ink) !important; }
+    body.eye-care-mode .sidebar .eye-mode-toggle {
+      background: var(--eye-accent2) !important;
+    }
+    body.eye-care-mode .sidebar .eye-mode-toggle::after {
+      background: var(--eye-bg2) !important;
+      transform: translateX(22px) !important;
+    }
     body.eye-care-mode .sidebar .user-profile-name { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .user-profile-role { color: var(--eye-muted) !important; }
     body.eye-care-mode .header {
