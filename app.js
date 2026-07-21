@@ -7817,20 +7817,50 @@ function isPro() {
   const mobileMenuBtn = document.getElementById('mobile-menu-btn');
   const mobileNavClose = document.getElementById('mobile-nav-close');
   const sidebar = document.querySelector('.sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  function openSidebarBackdrop() {
+    if (sidebarBackdrop) {
+      sidebarBackdrop.style.display = 'block';
+      requestAnimationFrame(() => sidebarBackdrop.classList.add('open'));
+    }
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebarBackdrop() {
+    if (sidebarBackdrop) {
+      sidebarBackdrop.classList.remove('open');
+      setTimeout(() => { sidebarBackdrop.style.display = 'none'; }, 300);
+    }
+    document.body.style.overflow = '';
+  }
   if (mobileMenuBtn && sidebar) {
     mobileMenuBtn.addEventListener('click', () => {
       sidebar.classList.toggle('mobile-open');
+      if (sidebar.classList.contains('mobile-open')) {
+        openSidebarBackdrop();
+      } else {
+        closeSidebarBackdrop();
+      }
     });
   }
   if (mobileNavClose && sidebar) {
     mobileNavClose.addEventListener('click', () => {
       sidebar.classList.remove('mobile-open');
+      closeSidebarBackdrop();
+    });
+  }
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', () => {
+      if (sidebar) sidebar.classList.remove('mobile-open');
+      closeSidebarBackdrop();
     });
   }
   // Close sidebar when clicking a nav item on mobile
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
-      if (window.innerWidth <= 768) sidebar.classList.remove('mobile-open');
+      if (window.innerWidth <= 768) {
+        sidebar.classList.remove('mobile-open');
+        closeSidebarBackdrop();
+      }
     });
   });
 
