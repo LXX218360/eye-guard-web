@@ -750,6 +750,12 @@
     }
   }
 
+  // 将校准函数暴露到全局，供HTML onclick调用
+  window.calibrateDistance = calibrateDistance;
+  window.calibrateEAR = calibrateEAR;
+  window.calibratePosture = calibratePosture;
+  window.calibrateAll = calibrateAll;
+
   // 页面加载时恢复校准状态
   async function restoreCalibration() {
     try {
