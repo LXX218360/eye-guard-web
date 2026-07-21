@@ -676,17 +676,21 @@
     setCalStatus('posture', 'active', '采集中...');
     setCalProgress('posture', 0, true);
     calSamples.posture = [];
+    var postureEl = document.getElementById('m-posture');
+    console.log('[校准坐姿] 开始，m-posture当前值:', postureEl ? postureEl.textContent : '元素不存在');
     showAlert('校准中：请坐直面向屏幕2秒', 'info', '&#x1F3AF;');
     let elapsed = 0;
     const interval = setInterval(() => {
       elapsed += 200;
       setCalProgress('posture', Math.min(100, (elapsed / 2000) * 100), true);
       const s = collectCalSample('posture');
+      console.log('[校准坐姿] 采集样本:', s, '当前m-posture:', postureEl ? postureEl.textContent : 'N/A');
       if (s > 0) calSamples.posture.push(s);
     }, 200);
     await new Promise(r => setTimeout(r, 2000));
     clearInterval(interval);
     setCalProgress('posture', 100, false);
+    console.log('[校准坐姿] 采集结束，样本数:', calSamples.posture.length, '样本:', calSamples.posture);
     if (calSamples.posture.length > 2) {
       calSamples.posture.sort((a, b) => a - b);
       const trimmed = calSamples.posture.slice(1, -1);
@@ -696,9 +700,11 @@
       await dbPut('settings', { key:'calibrationData', data: appState.calibrationData });
       setCalStatus('posture', 'done', avgPosture + '\u00B0');
       showAlert('坐姿基线校准完成：' + avgPosture + '\u00B0', 'info', '&#x2705;');
+      console.log('[校准坐姿] 成功，基准值:', avgPosture);
     } else {
       setCalStatus('posture', 'pending', '未校准');
-      showAlert('坐姿校准失败：未采集到足够数据', 'danger', '&#x26A0;');
+      showAlert('坐姿校准失败：未采集到足够数据（检测到' + calSamples.posture.length + '个样本，需至少3个）', 'danger', '&#x26A0;');
+      console.warn('[校准坐姿] 失败，样本不足:', calSamples.posture.length);
     }
     } catch(err) { console.warn('calibratePosture error:', err); setCalStatus('posture', 'pending', '未校准'); }
   }
@@ -1911,10 +1917,12 @@
       // 水平偏转（yaw）：鼻尖相对于两眼中点的水平偏移
       const yawOffset = Math.abs(noseTip.x - eyeMidX);
 
-      // 综合坐姿评分
-      let postureScore = Math.round(pitchDeg - Math.abs(eyeAngle) * 2 - yawOffset * 100);
-      // NaN 防护
-      if (isNaN(postureScore) || !isFinite(postureScore)) postureScore = 50;
+      // 综合坐姿评分：以pitch为主，roll和yaw只做轻微惩罚
+      // 坐直时面部垂直于屏幕，pitch≈90；轻微偏头/倾斜不应大幅拉低分数
+      let postureScore = Math.round(pitchDeg - Math.abs(eyeAngle) * 0.3 - yawOffset * 10);
+      // NaN 防护并限制在合理范围
+      if (isNaN(postureScore) || !isFinite(postureScore)) postureScore = 85;
+      postureScore = Math.min(120, Math.max(10, postureScore));
       return { pitch: pitchDeg || 0, roll: eyeAngle || 0, yaw: yawOffset || 0, score: postureScore };
     } catch(e) {
       return { pitch: 90, roll: 0, yaw: 0, score: 50 };
