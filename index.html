@@ -84,6 +84,16 @@
     <div class="loading-hint">界面就绪后即可使用，AI模型将在后台自动加载</div>
   </div>
 </div>
+<!-- 加载界面自动隐藏保险：即使 JS 崩溃，10 秒后也会自动消失 -->
+<script>
+(function() {
+  var t = setTimeout(function() {
+    var ls = document.getElementById('loading-screen');
+    if (ls) { ls.classList.add('hidden'); console.log('[保险] 加载界面超时自动隐藏'); }
+  }, 10000);
+  window._cancelLoadingAutoHide = function() { clearTimeout(t); };
+})();
+</script>
 <script>
 // ==================== 安全加固：HMAC 签名验证 ====================
 window._signingKey = null;
