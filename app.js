@@ -7483,6 +7483,11 @@ function isPro() {
     updateMonitorStatus('ear', 'warn', '眨眼检测: 已停止');
     updateMonitorStatus('dist', 'warn', '距离估算: 已停止');
     updateMonitorStatus('posture', 'warn', '坐姿检测: 已停止');
+    // 停止监测后将实时指标重置为"暂停采集"
+    ['m-distance', 'm-posture', 'm-ear', 'm-blink-rate'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.textContent = '暂停采集'; el.className = 'metric-value'; }
+    });
   }
 
   // Web Audio API beep
@@ -8900,12 +8905,16 @@ function isPro() {
     var toggle = document.getElementById('setting-theme-toggle');
     var isDark = toggle.classList.contains('active');
     if (isDark) {
+      // 切换到亮色模式
       toggle.classList.remove('active');
       document.body.classList.remove('dark-mode');
+      document.body.classList.add('light-mode');
       appState.theme = 'light';
       document.getElementById('theme-status-text').textContent = '亮色模式';
     } else {
+      // 切换到深色模式
       toggle.classList.add('active');
+      document.body.classList.remove('light-mode');
       document.body.classList.add('dark-mode');
       appState.theme = 'dark';
       document.getElementById('theme-status-text').textContent = '深色模式';
@@ -8923,11 +8932,13 @@ function isPro() {
     }
     appState.theme = savedTheme;
     if (savedTheme === 'dark') {
+      document.body.classList.remove('light-mode');
       document.body.classList.add('dark-mode');
       var toggle = document.getElementById('setting-theme-toggle');
       if (toggle) { toggle.classList.add('active'); }
     } else {
       document.body.classList.remove('dark-mode');
+      document.body.classList.add('light-mode');
       var toggle = document.getElementById('setting-theme-toggle');
       if (toggle) { toggle.classList.remove('active'); }
     }
