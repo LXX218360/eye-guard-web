@@ -69,6 +69,21 @@
   <script src="hmac-security.js"></script>
 </head>
 <body>
+<!-- ==================== 全屏加载界面 ==================== -->
+<div id="loading-screen" class="loading-screen">
+  <div class="loading-content">
+    <div class="loading-logo">&#x1F9E0;</div>
+    <div class="loading-title">护眼精灵</div>
+    <div class="loading-subtitle">正在初始化智能监测引擎...</div>
+    <div class="loading-progress-bar">
+      <div class="loading-progress-track">
+        <div class="loading-progress-fill" id="loading-progress-fill" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="loading-progress-text" id="loading-progress-text">准备中...</div>
+    <div class="loading-hint">首次加载可能需要 10-30 秒，请耐心等待</div>
+  </div>
+</div>
 <script>
 // ==================== 安全加固：HMAC 签名验证 ====================
 window._signingKey = null;
