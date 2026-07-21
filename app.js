@@ -115,7 +115,7 @@
     devices: {},
     permissions: { camera:'prompt', bluetooth:'prompt', usb:'prompt', notification:'default', autoRequestNotification: true },
     scene: 'office',
-    thresholds: { distance:45, distanceWarn:55, intervalMin:0, intervalSec:30, interval:30, blink:10, blinkWarn:15, posture:70, postureWarn:80, ear:22, alertDuration:3 },
+    thresholds: { distance:40, distanceWarn:50, intervalMin:0, intervalSec:30, interval:30, blink:10, blinkWarn:15, posture:70, postureWarn:80, ear:22, alertDuration:3 },
     alertSound: true,
     alertPersistDuration: 5,
     alertDurationDistance: 5,
@@ -597,7 +597,7 @@
     setCalStatus('dist', 'active', '采集中...');
     setCalProgress('dist', 0, true);
     calSamples.dist = [];
-    showAlert('校准中：请坐在35cm处，保持不动3秒', 'info', '&#x1F3AF;');
+    showAlert('校准中：请坐在40cm处，保持不动3秒', 'info', '&#x1F3AF;');
     let elapsed = 0;
     const interval = setInterval(() => {
       elapsed += 200;
@@ -609,16 +609,18 @@
     clearInterval(interval);
     setCalProgress('dist', 100, false);
     if (calSamples.dist.length > 3) {
-      // 去掉最大最小值取平均
+      // 去掉最大最小值取平均（仅用于参考显示）
       calSamples.dist.sort((a, b) => a - b);
       const trimmed = calSamples.dist.slice(1, -1);
       const avgDist = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
-      await dbPut('calibration', { key: 'distance_baseline', value: avgDist, rawSamples: calSamples.dist, timestamp: Date.now() });
+      // 使用目标距离40cm作为基准（用户被告知的位置），确保校准后距离准确
+      const targetDist = 40;
+      await dbPut('calibration', { key: 'distance_baseline', value: targetDist, rawSamples: calSamples.dist, timestamp: Date.now() });
       // 保存校准时的像素分析参数
-      appState.calibrationData.distance = { value: avgDist, skinRatio: currentSkinRatio || 0.15 };
+      appState.calibrationData.distance = { value: targetDist, skinRatio: currentSkinRatio || 0.15 };
       await dbPut('settings', { key:'calibrationData', data: appState.calibrationData });
-      setCalStatus('dist', 'done', avgDist + ' cm');
-      showAlert('距离校准完成：' + avgDist + 'cm', 'info', '&#x2705;');
+      setCalStatus('dist', 'done', targetDist + ' cm');
+      showAlert('距离校准完成：基准距离 ' + targetDist + 'cm', 'info', '&#x2705;');
     } else {
       setCalStatus('dist', 'pending', '未校准');
       showAlert('距离校准失败：未采集到足够数据，请确保摄像头画面中有面部', 'danger', '&#x26A0;');
@@ -698,7 +700,7 @@
     const btn = document.getElementById('btn-cal-all');
     btn.disabled = true;
     btn.textContent = '校准中，请保持坐姿不动5秒...';
-    showAlert('一键校准：请坐在35cm处，坐直，保持睁眼5秒', 'info', '&#x1F3AF;');
+    showAlert('一键校准：请坐在40cm处，坐直，保持睁眼5秒', 'info', '&#x1F3AF;');
     // 同时采集三类数据
     setCalStatus('dist', 'active', '采集中...');
     setCalStatus('ear', 'active', '采集中...');
@@ -722,8 +724,11 @@
     const earResult = avg(calSamples.ear);
     const postureResult = avg(calSamples.posture);
     if (distResult !== null) {
-      await dbPut('calibration', { key: 'distance_baseline', value: Math.round(distResult), rawSamples: calSamples.dist, timestamp: Date.now() });
-      setCalStatus('dist', 'done', Math.round(distResult) + ' cm');
+      const targetDist = 40;
+      await dbPut('calibration', { key: 'distance_baseline', value: targetDist, rawSamples: calSamples.dist, timestamp: Date.now() });
+      appState.calibrationData.distance = { value: targetDist, skinRatio: currentSkinRatio || 0.15 };
+      await dbPut('settings', { key:'calibrationData', data: appState.calibrationData });
+      setCalStatus('dist', 'done', targetDist + ' cm');
     } else { setCalStatus('dist', 'pending', '未校准'); }
     if (earResult !== null) {
       await dbPut('calibration', { key: 'ear_baseline', value: parseFloat(earResult.toFixed(3)), rawSamples: calSamples.ear, timestamp: Date.now() });
@@ -749,11 +754,23 @@
   async function restoreCalibration() {
     try {
       const distCal = await dbGet('calibration', 'distance_baseline');
-      if (distCal) setCalStatus('dist', 'done', distCal.value + ' cm');
+      if (distCal) {
+        setCalStatus('dist', 'done', distCal.value + ' cm');
+        // 如果appState中没有距离校准数据，从calibration store恢复
+        if (!appState.calibrationData.distance) {
+          appState.calibrationData.distance = { value: distCal.value, skinRatio: distCal.skinRatio || 0.15 };
+        }
+      }
       const earCal = await dbGet('calibration', 'ear_baseline');
-      if (earCal) setCalStatus('ear', 'done', earCal.value.toFixed(3));
+      if (earCal) {
+        setCalStatus('ear', 'done', earCal.value.toFixed(3));
+        if (!appState.calibrationData.ear) appState.calibrationData.ear = earCal.value;
+      }
       const postureCal = await dbGet('calibration', 'posture_baseline');
-      if (postureCal) setCalStatus('posture', 'done', postureCal.value + '\u00B0');
+      if (postureCal) {
+        setCalStatus('posture', 'done', postureCal.value + '\u00B0');
+        if (!appState.calibrationData.posture) appState.calibrationData.posture = postureCal.value;
+      }
     } catch(err) { console.warn('Restore calibration error:', err); }
   }
 
@@ -6783,11 +6800,11 @@ function isPro() {
               // 手机手持距离近（25-50cm），平板略远（30-60cm），桌面更远（40-80cm）
               var baseRef, baseDist;
               if (IS_MOBILE) {
-                baseRef = 0.15; baseDist = 45; // 手机前置广角：面部占比0.15时约45cm
+                baseRef = 0.15; baseDist = 40; // 手机前置广角：面部占比0.15时约40cm
               } else if (IS_TABLET) {
-                baseRef = 0.14; baseDist = 50; // 平板前置：面部占比0.14时约50cm
+                baseRef = 0.14; baseDist = 45; // 平板前置：面部占比0.14时约45cm
               } else {
-                baseRef = 0.15; baseDist = 50; // 桌面：面部占比0.15时约50cm
+                baseRef = 0.15; baseDist = 45; // 桌面：面部占比0.15时约45cm
               }
               distCm = Math.round(10 + baseDist * Math.pow(baseRef / Math.max(0.01, correctedFaceWidthNorm), 1.0));
               if (isNaN(distCm) || !isFinite(distCm) || distCm < 0) distCm = 50;
@@ -7033,11 +7050,11 @@ function isPro() {
             // 无校准：不同设备使用不同的基准参数
             var fbRef, fbDist;
             if (IS_MOBILE) {
-              fbRef = 0.22; fbDist = 35; // 手机基准
+              fbRef = 0.22; fbDist = 30; // 手机基准
             } else if (IS_TABLET) {
-              fbRef = 0.18; fbDist = 40; // 平板基准
+              fbRef = 0.18; fbDist = 35; // 平板基准
             } else {
-              fbRef = 0.18; fbDist = 50; // 桌面基准
+              fbRef = 0.18; fbDist = 45; // 桌面基准
             }
             distCm = Math.round(10 + fbDist * Math.pow(Math.max(0.001, fbRef) / Math.max(0.001, combinedRatio), 0.55));
             if (isNaN(distCm) || !isFinite(distCm) || distCm < 0) distCm = 50;
