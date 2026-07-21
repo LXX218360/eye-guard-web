@@ -161,7 +161,8 @@
     pro: { activated: false, code: null, activatedAt: null, planType: null, expiresAt: null },
     freeMinutesUsedToday: 0,
     freeMinutesDate: null,
-    freeDailyLimit: 40
+    freeDailyLimit: 40,
+    theme: 'dark'
   };
 
   // Init default device enabled states
@@ -7909,6 +7910,7 @@ function isPro() {
     try {
       await openDB();
       await restoreAllSettings();
+      restoreTheme();
       // 初始化存储信息显示
       if (typeof refreshStorageInfo === 'function') refreshStorageInfo();
       // 初始化当前 active 页面的图表
@@ -8245,6 +8247,7 @@ function isPro() {
       if (usageTrend) {
         usageTrend.setOption({
           ...theme,
+          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: function(p) { if (p && p[0]) return p[0].axisValue + '<br/>' + p[0].marker + ' ' + p[0].seriesName + ': ' + p[0].value + 'cm'; return ''; } },
           grid: { left: 40, right: 20, top: 20, bottom: 30 },
           xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: '#d8d3c9' } }, axisLabel: { color: '#8a8578' } },
           yAxis: { type: 'value', name: 'cm', axisLine: { show: false }, splitLine: { lineStyle: { color: '#ece8e0' } }, axisLabel: { color: '#8a8578' } },
@@ -8262,6 +8265,7 @@ function isPro() {
       if (alertPie) {
         alertPie.setOption({
           ...theme,
+          tooltip: { trigger: 'item', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: '{b}: {c}次 ({d}%)' },
           series: [{
             type: 'pie', radius: ['40%', '65%'], center: ['50%', '50%'],
             data: [],
@@ -8277,6 +8281,7 @@ function isPro() {
       if (heatmapChart) {
         heatmapChart.setOption({
           ...theme,
+          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: function(p) { if (p && p[0]) return p[0].axisValue + '<br/>' + p[0].marker + ' ' + p[0].seriesName + ': ' + p[0].value + '分钟'; return ''; } },
           grid: { left: 40, right: 20, top: 20, bottom: 30 },
           xAxis: { type: 'category', data: ['6-9时','9-12时','12-15时','15-18时','18-21时','21-24时'], axisLabel: { color: '#8a8578' } },
           yAxis: { type: 'value', name: '分钟', axisLabel: { color: '#8a8578' }, splitLine: { lineStyle: { color: '#ece8e0' } } },
@@ -8298,6 +8303,7 @@ function isPro() {
       if (realtime) {
         realtime.setOption({
           ...theme,
+          tooltip: { trigger: 'item', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: '{b}: {c}分' },
           series: [{
             type: 'gauge', radius: '85%', startAngle: 200, endAngle: -20,
             axisLine: { lineStyle: { width: 15, color: [[0.3, '#c86464'], [0.7, '#c8c464'], [1, '#5a8f6a']] } },
@@ -8317,6 +8323,7 @@ function isPro() {
       if (compare) {
         compare.setOption({
           ...theme,
+          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
           grid: { left: 40, right: 20, top: 55, bottom: 30 },
           legend: { data: ['本周', '上周'], textStyle: { color: '#8a8578', fontSize: 11 }, top: 38 },
           xAxis: { type: 'category', data: days, axisLabel: { color: '#8a8578' } },
@@ -8334,6 +8341,7 @@ function isPro() {
       if (radar) {
         radar.setOption({
           ...theme,
+          tooltip: { trigger: 'item', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
           radar: {
             indicator: [
               { name: '眨眼', max: 100 }, { name: '距离', max: 100 },
@@ -8365,6 +8373,7 @@ function isPro() {
       if (dailyDetail) {
         dailyDetail.setOption({
           ...theme,
+          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
           grid: { left: 50, right: 20, top: 40, bottom: 40 },
           legend: { data: ['平均眨眼率', '平均距离(cm)', '预警次数'], textStyle: { color: '#8a8578' }, top: 5 },
           xAxis: { type: 'category', data: timeSlotLabels, axisLabel: { color: '#8a8578', rotate: 20, fontSize: 10 } },
@@ -8384,6 +8393,7 @@ function isPro() {
       if (healthTrend) {
         healthTrend.setOption({
           ...theme,
+          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
           grid: { left: 40, right: 40, top: 40, bottom: 30 },
           legend: { data: ['健康评分', '平均视距(cm)'], textStyle: { color: '#8a8578' }, top: 5 },
           xAxis: { type: 'category', data: trendDays, axisLabel: { color: '#8a8578', interval: 4 } },
@@ -8882,6 +8892,48 @@ function isPro() {
     if (typeof initFaceLandmarker === 'function' && !faceLandmarker && !window._mediapipePreinit) {
       window._mediapipePreinit = true;
       setTimeout(function() { initFaceLandmarker(); }, 500);
+    }
+  }
+
+  // ===================== 主题切换 =====================
+  function toggleTheme() {
+    var toggle = document.getElementById('setting-theme-toggle');
+    var isDark = toggle.classList.contains('active');
+    if (isDark) {
+      toggle.classList.remove('active');
+      document.body.classList.remove('dark-mode');
+      appState.theme = 'light';
+      document.getElementById('theme-status-text').textContent = '亮色模式';
+    } else {
+      toggle.classList.add('active');
+      document.body.classList.add('dark-mode');
+      appState.theme = 'dark';
+      document.getElementById('theme-status-text').textContent = '深色模式';
+    }
+    localStorage.setItem('eyeGuardTheme', appState.theme);
+    try { dbPut('settings', { key: 'theme', value: appState.theme }); } catch(e) {}
+  }
+
+  function restoreTheme() {
+    var savedTheme = localStorage.getItem('eyeGuardTheme');
+    if (!savedTheme) {
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      savedTheme = prefersDark ? 'dark' : 'light';
+      localStorage.setItem('eyeGuardTheme', savedTheme);
+    }
+    appState.theme = savedTheme;
+    if (savedTheme === 'dark') {
+      document.body.classList.add('dark-mode');
+      var toggle = document.getElementById('setting-theme-toggle');
+      if (toggle) { toggle.classList.add('active'); }
+    } else {
+      document.body.classList.remove('dark-mode');
+      var toggle = document.getElementById('setting-theme-toggle');
+      if (toggle) { toggle.classList.remove('active'); }
+    }
+    var statusText = document.getElementById('theme-status-text');
+    if (statusText) {
+      statusText.textContent = savedTheme === 'dark' ? '深色模式' : '亮色模式';
     }
   }
 
