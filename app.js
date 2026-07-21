@@ -6182,6 +6182,11 @@ function isPro() {
     var label = document.getElementById('ai-loading-text');
     if (bar) bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
     if (label) label.textContent = text || '';
+    // 同步更新全屏加载界面进度条
+    var fullBar = document.getElementById('loading-progress-fill');
+    var fullText = document.getElementById('loading-progress-text');
+    if (fullBar) fullBar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    if (fullText) fullText.textContent = text || '';
   };
 
   window._enableStartButton = function(enabled, customText) {
@@ -6196,6 +6201,11 @@ function isPro() {
       btn.textContent = customText || '开启监测';
       if (bar) { bar.style.transition = 'opacity 0.5s'; bar.style.opacity = '0'; setTimeout(function() { bar.style.display = 'none'; }, 500); }
       if (label) { label.style.transition = 'opacity 0.5s'; label.style.opacity = '0'; }
+      // 加载完成：淡出全屏加载界面，显示主界面
+      var loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen && !loadingScreen.classList.contains('hidden')) {
+        loadingScreen.classList.add('hidden');
+      }
     } else {
       btn.disabled = true;
       btn.style.opacity = '0.6';
