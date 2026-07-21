@@ -7818,6 +7818,11 @@ function isPro() {
         }
       }
     }
+    // 页面交互就绪：隐藏全屏加载界面（不需要等待AI模型加载完成）
+    var loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+      loadingScreen.classList.add('hidden');
+    }
   }
 
   // Toast close handler
