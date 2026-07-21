@@ -2,6 +2,36 @@
      护眼精灵 - 完整功能实现
      ========================================================== */
 
+  // ===================== 三层防盗保护 =====================
+  (function() {
+    // 第1层：禁用右键菜单
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      return false;
+    }, true);
+    // 第2层：禁用 F12 / Ctrl+Shift+I / Ctrl+Shift+J / Ctrl+U
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'F12') { e.preventDefault(); return false; }
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) { e.preventDefault(); return false; }
+      if (e.ctrlKey && e.key === 'U') { e.preventDefault(); return false; }
+    }, true);
+    // 第3层：DevTools检测（debugger陷阱 + 尺寸变化检测）
+    (function detectDevTools() {
+      const threshold = 160;
+      const check = function() {
+        if ((window.outerWidth - window.innerWidth) > threshold || (window.outerHeight - window.innerHeight) > threshold) {
+          document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0e17;color:#fff;font-size:18px;">&#x1F6AB; 检测到开发者工具，页面已锁定</div>';
+        }
+      };
+      window.addEventListener('resize', check);
+      setInterval(check, 1000);
+      // debugger陷阱
+      setInterval(function() {
+        (function() {}.constructor('debugger')());
+      }, 200);
+    })();
+  })();
+
   // ===================== Mobile Detection =====================
   const IS_MOBILE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const IS_TABLET = /iPad|Android(?!.*Mobile)/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -696,7 +726,7 @@
       const trimmed = calSamples.posture.slice(1, -1);
       const avgPosture = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
       await dbPut('calibration', { key: 'posture_baseline', value: avgPosture, rawSamples: calSamples.posture, timestamp: Date.now() });
-      appState.calibrationData.posture = { value: avgPosture, normalizedY: currentNormalizedY || 0.35 };
+      appState.calibrationData.posture = { value: avgPosture, normalizedY: window.currentNormalizedY || 0.35 };
       await dbPut('settings', { key:'calibrationData', data: appState.calibrationData });
       setCalStatus('posture', 'done', avgPosture + '\u00B0');
       showAlert('坐姿基线校准完成：' + avgPosture + '\u00B0', 'info', '&#x2705;');
@@ -6731,7 +6761,7 @@ function isPro() {
 
     // 暴露当前帧数据供校准使用
     window.currentSkinRatio = 0;
-    var currentNormalizedY = 0.35;
+    window.currentNormalizedY = 0.35;
     var currentEARValue = 0.3;
 
     // ====== 优先使用 MediaPipe Face Landmarker ======
@@ -6836,7 +6866,7 @@ function isPro() {
 
             // ---- 坐姿角度：头部姿态 ----
             const posture = getHeadPosture(landmarks);
-            currentNormalizedY = landmarks[1].y; // 鼻尖Y坐标
+            window.currentNormalizedY = landmarks[1].y; // 鼻尖Y坐标
             let clampedPosture = Math.min(120, Math.max(10, posture.score));
 
             // ---- EAR 显示值 ----
@@ -7088,7 +7118,7 @@ function isPro() {
           const skinCenterY = skinTopSum / skinPixelCount;
           const skinCenterX = skinLeftSum / skinPixelCount;
           const normalizedY = skinCenterY / h;
-          currentNormalizedY = normalizedY;
+          window.currentNormalizedY = normalizedY;
           const horizontalOffset = Math.abs(skinCenterX / w - 0.5);
           let postureAngle = Math.round(90 - (normalizedY - 0.35) * 100 - horizontalOffset * 30);
           let clampedPosture = Math.min(120, Math.max(10, postureAngle));
