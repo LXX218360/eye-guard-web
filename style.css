@@ -15,7 +15,21 @@
       --gradient-warm: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
       --gradient-cool: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
     }
-    /* 手动主题切换：深色模式为默认（:root已定义亮色变量） */
+    /* 手动主题切换：亮色模式强制覆盖（用于覆盖系统深色偏好） */
+    body.light-mode {
+      --bg: #f7f5f0; --bg2: #ffffff; --bg3: #f0ede6;
+      --ink: #1a2332; --muted: #6b7a90; --rule: #dde4ec;
+      --accent: #2563eb; --accent2: #059669;
+      --accent-light: rgba(37,99,235,0.08); --accent2-light: rgba(5,150,105,0.08);
+      --danger: #ef4444; --warning: #f59e0b; --success: #059669; --purple: #7c3aed;
+      --card-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
+      --card-shadow-hover: 0 8px 30px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.05);
+      --glass-bg: rgba(255,255,255,0.75); --glass-border: rgba(255,255,255,0.50);
+      --gradient-primary: linear-gradient(135deg, #2563eb 0%, #059669 100%);
+      --gradient-warm: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+      --gradient-cool: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+    }
+    /* 手动主题切换：深色模式覆盖 */
     body.dark-mode {
       --bg: #0f172a; --bg2: #1e293b; --bg3: #273449;
       --ink: #f1f5f9; --muted: #94a3b8; --rule: #334155;
@@ -145,6 +159,10 @@
       animation: fadeInLeft 0.5s ease;
     }
     @keyframes fadeInLeft { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+    body.light-mode .sidebar {
+      background: linear-gradient(180deg, rgba(255,255,255,0.90) 0%, rgba(238,242,247,0.95) 100%);
+      border-right: 1px solid var(--rule);
+    }
     body.dark-mode .sidebar {
       background: linear-gradient(180deg, rgba(30,41,59,0.92) 0%, rgba(15,23,42,0.98) 100%);
       border-right: 1px solid rgba(255,255,255,0.06);
@@ -338,6 +356,11 @@
       transition: box-shadow 0.3s ease;
     }
     .ai-monitor-bar:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.09), inset 0 1px 0 rgba(255,255,255,0.6); }
+    body.light-mode .ai-monitor-bar {
+      background: linear-gradient(135deg, rgba(255,255,255,0.70) 0%, rgba(244,241,236,0.60) 100%);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.5);
+    }
+    body.light-mode .ai-monitor-bar:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.09), inset 0 1px 0 rgba(255,255,255,0.6); }
     body.dark-mode .ai-monitor-bar {
       background: linear-gradient(135deg, rgba(26,29,36,0.80) 0%, rgba(17,19,24,0.70) 100%);
       box-shadow: 0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
