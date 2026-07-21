@@ -1986,35 +1986,36 @@
       const noseOffset = noseTip.y - eyeMidY;
       const pitchDeg = Math.round(90 - (noseOffset - 0.06) * 300);
 
-      // 水平偏转（yaw）：鼻尖相对于两眼中点的水平偏移
-      const yawOffset = Math.abs(noseTip.x - eyeMidX);
+      // 水平偏转（yaw）：鼻尖相对于两眼中点的水平偏移（有正负，表示左偏/右偏）
+      const yawOffset = noseTip.x - eyeMidX;
+      // 左右倾斜角度（度）：绝对值越大越偏
+      const yawDeg = Math.round(Math.abs(yawOffset) * 300);
 
-      // 综合坐姿评分：以pitch为主，roll和yaw只做轻微惩罚
-      // 坐直时面部垂直于屏幕，pitch≈90；轻微偏头/倾斜不应大幅拉低分数
-      let rawScore = Math.round(pitchDeg - Math.abs(eyeAngle) * 0.3 - yawOffset * 10);
-      // NaN 防护
-      if (isNaN(rawScore) || !isFinite(rawScore)) rawScore = 85;
-      rawScore = Math.min(120, Math.max(10, rawScore));
+      // 前后姿态评分（pitch为主）：坐直时pitch≈90
+      let pitchRawScore = Math.round(pitchDeg - Math.abs(eyeAngle) * 0.2);
+      if (isNaN(pitchRawScore) || !isFinite(pitchRawScore)) pitchRawScore = 85;
+      pitchRawScore = Math.min(120, Math.max(10, pitchRawScore));
       // 暴露原始值（未应用校准系数）供校准采集使用
-      window.currentRawPostureScore = rawScore;
+      window.currentRawPostureScore = pitchRawScore;
       // 应用校准系数：将当前计算值按比例缩放到标准（校准位置=90°）
-      let postureScore = rawScore;
+      let pitchScore = pitchRawScore;
       const calPosture = appState.calibrationData && appState.calibrationData.posture;
       if (calPosture && calPosture.factor && calPosture.factor > 0.5 && calPosture.factor < 2.0) {
-        postureScore = Math.round(rawScore * calPosture.factor);
+        pitchScore = Math.round(pitchRawScore * calPosture.factor);
       } else if (calPosture && calPosture.value && calPosture.value > 10 && calPosture.value < 120) {
-        // 兼容旧数据（偏移量格式）：转换为系数
         const factor = 90 / calPosture.value;
-        postureScore = Math.round(rawScore * factor);
-        // 升级存储为系数格式
+        pitchScore = Math.round(pitchRawScore * factor);
         appState.calibrationData.posture = { factor: factor, normalizedY: calPosture.normalizedY || 0.35 };
       }
-      // NaN 防护并限制在合理范围
-      if (isNaN(postureScore) || !isFinite(postureScore)) postureScore = 85;
-      postureScore = Math.min(120, Math.max(10, postureScore));
-      return { pitch: pitchDeg || 0, roll: eyeAngle || 0, yaw: yawOffset || 0, score: postureScore };
+      if (isNaN(pitchScore) || !isFinite(pitchScore)) pitchScore = 85;
+      pitchScore = Math.min(120, Math.max(10, pitchScore));
+
+      // 左右姿态评分：yawDeg越小越好（0=正中），15度内正常
+      let yawScore = Math.max(20, Math.round(100 - yawDeg * 3));
+
+      return { pitch: pitchDeg || 0, roll: eyeAngle || 0, yaw: yawOffset || 0, yawDeg: yawDeg || 0, pitchScore: pitchScore, yawScore: yawScore, score: Math.min(pitchScore, yawScore) };
     } catch(e) {
-      return { pitch: 90, roll: 0, yaw: 0, score: 50 };
+      return { pitch: 90, roll: 0, yaw: 0, yawDeg: 0, pitchScore: 85, yawScore: 85, score: 50 };
     }
   }
 
@@ -6949,6 +6950,9 @@ function isPro() {
             else window._smoothDistCm = window._smoothDistCm * (1 - alphaDist) + safeDist * alphaDist;
             if (window._smoothPosture === undefined || isNaN(window._smoothPosture)) window._smoothPosture = safePosture;
             else window._smoothPosture = window._smoothPosture * (1 - alphaPosture) + safePosture * alphaPosture;
+            // 左右偏转平滑
+            if (window._smoothYawScore === undefined || isNaN(window._smoothYawScore)) window._smoothYawScore = (posture.yawScore || 85);
+            else window._smoothYawScore = window._smoothYawScore * (1 - alphaPosture) + (posture.yawScore || 85) * alphaPosture;
             if (window._smoothEAR === undefined || isNaN(window._smoothEAR)) window._smoothEAR = safeEAR;
             else window._smoothEAR = window._smoothEAR * (1 - alphaEAR) + safeEAR * alphaEAR;
             if (window._smoothBlinkRate === undefined || isNaN(window._smoothBlinkRate)) window._smoothBlinkRate = (blinkRate === -1 ? 0 : blinkRate);
@@ -6956,11 +6960,17 @@ function isPro() {
 
             const smoothDistCm = Math.round(window._smoothDistCm);
             const smoothPosture = Math.round(window._smoothPosture);
+            const smoothYawScore = Math.round(window._smoothYawScore);
             const smoothEAR = window._smoothEAR;
             const smoothBlinkRate = blinkRate === -1 ? -1 : Math.round(window._smoothBlinkRate);
 
             const distLevel = smoothDistCm < appState.thresholds.distance ? 'bad' : (smoothDistCm < appState.thresholds.distanceWarn ? 'warn' : 'good');
-            const postureLevel = smoothPosture > appState.thresholds.postureWarn ? 'good' : (smoothPosture > appState.thresholds.posture ? 'warn' : 'bad');
+            // 前后姿态：用pitch评分判断（阈值越高越严格）
+            const pitchLevel = smoothPosture > appState.thresholds.postureWarn ? 'good' : (smoothPosture > appState.thresholds.posture ? 'warn' : 'bad');
+            // 左右偏转：用yaw评分判断（低于60分为不良）
+            const yawLevel = smoothYawScore >= 60 ? 'good' : (smoothYawScore >= 40 ? 'warn' : 'bad');
+            // 综合坐姿等级：任一维度不良则综合不良
+            const postureLevel = (pitchLevel === 'bad' || yawLevel === 'bad') ? 'bad' : (pitchLevel === 'warn' || yawLevel === 'warn') ? 'warn' : 'good';
             const earLevel = smoothEAR < earThreshold * 0.7 ? 'bad' : (smoothEAR < earThreshold ? 'warn' : 'good');
             const blinkLevel = smoothBlinkRate < appState.thresholds.blink ? 'bad' : (smoothBlinkRate < appState.thresholds.blinkWarn ? 'warn' : 'good');
 
@@ -7057,7 +7067,8 @@ function isPro() {
 
             // 声音提醒：检测持续异常
             checkPersistentAlert(distLevel, 'distance');
-            checkPersistentAlert(postureLevel, 'posture');
+            checkPersistentAlert(pitchLevel, 'pitch');
+            checkPersistentAlert(yawLevel, 'yaw');
             checkPersistentAlert(earLevel, 'blink');
 
           }
@@ -7511,8 +7522,8 @@ function isPro() {
 
   // 声音提醒：持续异常检测（每个指标有独立的持续异常阈值）
   // 英文指标名 → 中文映射
-  var metricNameCN = { distance: '面部距离', posture: '坐姿角度', blink: '眨眼频率' };
-  var metricDurationKey = { distance: 'alertDurationDistance', posture: 'alertDurationPosture', blink: 'alertDurationBlink' };
+  var metricNameCN = { distance: '面部距离', posture: '前后坐姿', pitch: '前后坐姿', yaw: '左右偏转', blink: '眨眼频率' };
+    var metricDurationKey = { distance: 'alertDurationDistance', posture: 'alertDurationPosture', pitch: 'alertDurationPosture', yaw: 'alertDurationPosture', blink: 'alertDurationBlink' };
   function checkPersistentAlert(level, metricName) {
     var durationKey = metricDurationKey[metricName] || 'alertPersistDuration';
     var threshold = appState[durationKey] || appState.alertPersistDuration || 5;
@@ -8565,13 +8576,14 @@ function isPro() {
       var avgBlink = sessions.reduce(function(s, r) { return s + (r.blinkRate || 0); }, 0) / sessions.length;
       var avgDist = sessions.reduce(function(s, r) { return s + (r.distance || 50); }, 0) / sessions.length;
       var avgPosture = sessions.reduce(function(s, r) { return s + (r.posture || 80); }, 0) / sessions.length;
-      var avgDuration = Math.min(100, sessions.length * 2);
+      var avgDuration = Math.min(120, sessions.length * 2);
+      // 时长评分：<=20min=100分，每多10分钟扣15分，最低20分
+      var durationScore = avgDuration <= 20 ? 100 : Math.max(20, Math.round(100 - (avgDuration - 20) * 1.5));
 
       // 归一化评分（0-100）
-      var blinkScore = Math.min(100, avgBlink * 4);       // 理想眨眼 15-20次/min
-      var distScore = Math.min(100, avgDist * 1.5);       // 理想距离 50-70cm
-      var postureScore = Math.min(100, avgPosture);       // 理想坐姿 >80分
-      var durationScore = Math.min(100, avgDuration);
+      var blinkScore = Math.min(100, Math.max(0, Math.round(avgBlink * 4 - 20)));  // 理想15-20次/min
+      var distScore = Math.min(100, Math.max(0, Math.round(avgDist * 1.5 - 5)));     // 理想40-70cm
+      var postureScore = Math.min(100, Math.max(0, Math.round(avgPosture)));         // 理想>=80
 
       var score = weightedHealthScore(blinkScore, distScore, postureScore, durationScore);
       chartInstances['realtime'].setOption({
@@ -8627,11 +8639,21 @@ function isPro() {
       var avgPostureR = sessions.reduce(function(s, r) { return s + (r.posture || 80); }, 0) / sessions.length;
 
       // 各维度评分（归一化到0-100）
-      var blinkDim = Math.min(100, Math.round(avgBlinkR * 4));
-      var distDim = Math.min(100, Math.round(avgDistR * 1.5));
-      var postureDim = Math.min(100, Math.round(avgPostureR));
-      var durationDim = Math.min(100, Math.round(sessions.length * 0.5));
-      var freqDim = Math.min(100, Math.round(avgBlinkR * 3));
+      // 眨眼：理想15-20次/min，15次=60分，20次=80分，25次=100分
+      var blinkDim = Math.min(100, Math.max(0, Math.round((avgBlinkR - 5) * 4)));
+      // 距离：理想40-70cm，40cm=60分，50cm=75分，67cm+=100分
+      var distDim = Math.min(100, Math.max(0, Math.round(avgDistR * 1.5 - 5)));
+      // 坐姿：理想>=80分
+      var postureDim = Math.min(100, Math.max(0, Math.round(avgPostureR)));
+      // 时长：反映单次连续用眼是否合理（<=20min=100分，30min=80分，45min=50分，60min+=20分）
+      var sessionMinutes = Math.min(120, sessions.length * 2);
+      var durationDim = sessionMinutes <= 20 ? 100 : Math.max(20, Math.round(100 - (sessionMinutes - 20) * 1.5));
+      // 频率：用提醒频率的倒数（提醒越少越好），用良好记录占比
+      var goodCount = 0;
+      sessions.forEach(function(r) {
+        if ((r.blinkRate || 0) >= 10 && (r.distance || 50) >= 40 && (r.posture || 80) >= 70) goodCount++;
+      });
+      var freqDim = Math.min(100, Math.round(goodCount / sessions.length * 100));
 
       chartInstances['radar'].setOption({
         series: [{
