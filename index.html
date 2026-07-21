@@ -679,6 +679,12 @@ setTimeout(function() {
   <main class="main-content">
     <header class="header">
       <h1 class="header-title" id="page-title">数据概览</h1>
+      <div class="medical-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        科学监测系统 v2.0
+      </div>
       <div class="header-actions">
         <button class="eye-care-toggle" id="eye-care-toggle" title="护眼模式">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/></svg>
@@ -1176,9 +1182,9 @@ setTimeout(function() {
             <div class="form-group">
               <div class="settings-row" style="align-items:center; gap:8px;">
                 <label class="form-label" style="margin-bottom:0;">提醒间隔</label>
-                <input type="number" id="setting-interval-min" min="0" max="60" value="0" style="width:55px;padding:6px 8px;border:1px solid var(--border,#d8d3c9);border-radius:6px;background:var(--bg,#fff);font-size:14px;text-align:center;color:#fff;" oninput="appState.thresholds.intervalMin=+this.value">
+                <input type="number" id="setting-interval-min" min="0" max="60" value="0" style="width:55px;padding:6px 8px;border:1px solid var(--border,#d8d3c9);border-radius:6px;background:var(--bg,#fff);font-size:14px;text-align:center;color:var(--ink);" oninput="appState.thresholds.intervalMin=+this.value">
                 <span>分</span>
-                <input type="number" id="setting-interval-sec" min="0" max="59" value="30" style="width:55px;padding:6px 8px;border:1px solid var(--border,#d8d3c9);border-radius:6px;background:var(--bg,#fff);font-size:14px;text-align:center;color:#fff;" oninput="appState.thresholds.intervalSec=+this.value">
+                <input type="number" id="setting-interval-sec" min="0" max="59" value="30" style="width:55px;padding:6px 8px;border:1px solid var(--border,#d8d3c9);border-radius:6px;background:var(--bg,#fff);font-size:14px;text-align:center;color:var(--ink);" oninput="appState.thresholds.intervalSec=+this.value">
                 <span>秒</span>
               </div>
             </div>
@@ -1303,6 +1309,21 @@ setTimeout(function() {
                   <div class="slider-value" id="alert-duration-blink-val">5秒</div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Theme Settings -->
+          <div class="settings-card">
+            <div class="settings-title">&#x1F3A8; 主题设置</div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">暗色模式</div>
+                <div class="toggle-desc">切换深色/亮色主题，默认跟随系统</div>
+              </div>
+              <div class="toggle-switch active" id="setting-theme-toggle" onclick="toggleTheme()"></div>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:8px;padding:8px 12px;background:var(--bg3);border-radius:8px;line-height:1.5;">
+              &#x1F4A1; 当前为 <strong id="theme-status-text">深色模式</strong>。切换后图表颜色将在下次刷新页面时同步。
             </div>
           </div>
 
