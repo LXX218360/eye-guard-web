@@ -1439,6 +1439,7 @@
   }
 
     /* ============ 护眼模式 Eye Care Mode ============ */
+    /* 护眼模式变量定义在 :root 层，确保任何主题下都可用 */
     :root {
       --eye-bg: #f0ede4;
       --eye-bg2: #f7f4ea;
@@ -1458,6 +1459,27 @@
     }
 
     body.eye-care-mode {
+      /* 直接覆盖核心变量，确保与系统深色偏好无关 */
+      --bg: #f0ede4 !important;
+      --bg2: #f7f4ea !important;
+      --bg3: #e8e4d8 !important;
+      --ink: #2d2924 !important;
+      --muted: #7a7568 !important;
+      --rule: #d8d3c4 !important;
+      --accent: #5a8f5a !important;
+      --accent2: #8b7d3a !important;
+      --accent-light: rgba(90,143,90,0.10) !important;
+      --accent2-light: rgba(139,125,58,0.10) !important;
+      --danger: #c45c4a !important;
+      --warning: #c4903a !important;
+      --success: #5a8f5a !important;
+      --purple: #7a6d3a !important;
+      --card-shadow: 0 2px 12px rgba(60,50,20,0.05), 0 1px 3px rgba(60,50,20,0.03) !important;
+      --card-shadow-hover: 0 8px 30px rgba(60,50,20,0.08), 0 2px 8px rgba(60,50,20,0.05) !important;
+      --glass-bg: rgba(247,244,234,0.85) !important;
+      --glass-border: rgba(200,190,170,0.40) !important;
+      --gradient-primary: linear-gradient(135deg, #5a8f5a 0%, #8b7d3a 100%) !important;
+      --warning-light: rgba(196,144,58,0.08) !important;
       background: var(--eye-bg) !important;
       color: var(--eye-ink) !important;
     }
