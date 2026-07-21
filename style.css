@@ -909,6 +909,20 @@
         z-index: 300;
         animation: slideInLeft 0.25s ease;
       }
+      /* 侧边栏背景遮罩（移动端） */
+      .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 299;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .sidebar-backdrop.open {
+        opacity: 1;
+        pointer-events: all;
+      }
       @keyframes slideInLeft {
         from { transform: translateX(-100%); }
         to { transform: translateX(0); }
@@ -925,8 +939,6 @@
         cursor: pointer;
         text-align: center;
       }
-      .sidebar { display: none !important; }
-      .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100vw !important; padding-top: 0; padding-bottom: 0; }
       .content { padding: 12px; }
       .header { padding: 10px 12px; flex-wrap: wrap; }
       .page-title { font-size: 20px; }
@@ -979,6 +991,8 @@
     body.device-mobile .scene-mode-panel { margin: 0 -4px; }
     body.device-mobile .panel-title { font-size: 14px; }
     body.device-mobile .panel-desc { font-size: 11px; }
+    body.device-mobile .nav-item { padding: 14px 20px !important; min-height: 48px !important; font-size: 15px !important; }
+    body.device-mobile .nav-item svg { width: 22px !important; height: 22px !important; }
     
     body.device-tablet .page-title { font-size: 22px; }
     body.device-tablet .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
@@ -1070,14 +1084,14 @@
         margin-left: 0 !important;
         width: 100% !important;
         max-width: 100vw !important;
-        padding-bottom: 70px !important; /* 为底部Tab留空间 */
+        padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; /* 为底部Tab留空间 */
       }
       /* 监测页全屏适配 */
       .monitor-body { flex-direction: column !important; }
       .monitor-sidebar { width: 100% !important; min-width: 100% !important; max-height: none !important; }
       .monitor-body-right { width: 100% !important; }
       .monitor-video {
-        height: 280px !important;
+        height: min(280px, 35vh) !important;
       }
       #monitor-video, #monitor-overlay-canvas {
         width: 100% !important;
@@ -1118,11 +1132,35 @@
       .bottom-tab-bar .tab-item {
         gap: 2px;
         font-size: 10px;
+        min-height: 44px;
       }
       .bottom-tab-bar .tab-item svg {
         width: 20px;
         height: 20px;
       }
+      /* Toast 移动端适配 */
+      .alert-toast {
+        top: auto !important;
+        bottom: 80px !important;
+        right: 12px !important;
+        left: 12px !important;
+        max-width: none !important;
+        transform: translateY(120%) !important;
+        border-radius: 12px !important;
+      }
+      .alert-toast.show {
+        transform: translateY(0) !important;
+      }
+      /* Modal 移动端适配 */
+      .modal-box {
+        max-width: 95% !important;
+        width: 95% !important;
+        padding: 24px 20px !important;
+        border-radius: 16px !important;
+        max-height: 85vh !important;
+        overflow-y: auto !important;
+      }
+      .pro-timer-badge { bottom: 70px; right: 10px; left: 10px; justify-content: space-between; }
     }
 
     @media (max-width: 400px) {
@@ -1130,7 +1168,7 @@
         font-size: 9px;
       }
       .monitor-video {
-        height: 220px !important;
+        height: min(220px, 30vh) !important;
       }
     }
 
@@ -1139,6 +1177,8 @@
       .sidebar { width: 180px !important; }
       .main-content { margin-left: 180px !important; }
       .chart-grid { grid-template-columns: 1fr 1fr !important; }
+      .user-edit-panel { left: 180px !important; }
+      .nav-item { padding: 10px 12px !important; font-size: 13px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     }
 
     /* ============ Sound Alert Animation ============ */
@@ -1187,7 +1227,7 @@
 
     /* 移动端监测页面优化 */
     body.device-mobile #page-monitor .monitor-video {
-      height: 300px !important;
+      height: min(300px, 35vh) !important;
       border-radius: 12px;
     }
     body.device-mobile #page-monitor .monitor-metrics {
