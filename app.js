@@ -583,11 +583,20 @@
     const distEl = document.getElementById('m-distance');
     const earEl = document.getElementById('m-ear');
     const postureEl = document.getElementById('m-posture');
-    if (!distEl || distEl.textContent === '--') return false;
     let sample = 0;
-    if (type === 'dist') { sample = parseInt(distEl.textContent) || 0; }
-    else if (type === 'ear') { sample = parseFloat(earEl.textContent) || 0; }
-    else if (type === 'posture') { sample = parseInt(postureEl.textContent) || 0; }
+    if (type === 'dist') {
+      // 距离采集：需要距离数据可用
+      if (!distEl || distEl.textContent === '--') return false;
+      sample = parseInt(distEl.textContent) || 0;
+    } else if (type === 'ear') {
+      // EAR采集：需要EAR数据可用
+      if (!earEl || earEl.textContent === '--') return false;
+      sample = parseFloat(earEl.textContent) || 0;
+    } else if (type === 'posture') {
+      // 坐姿采集：需要坐姿数据可用
+      if (!postureEl || postureEl.textContent === '--') return false;
+      sample = parseInt(postureEl.textContent) || 0;
+    }
     return sample;
   }
 
