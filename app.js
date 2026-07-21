@@ -820,7 +820,10 @@
       const postureCal = await dbGet('calibration', 'posture_baseline');
       if (postureCal) {
         setCalStatus('posture', 'done', postureCal.value + '\u00B0');
-        if (!appState.calibrationData.posture) appState.calibrationData.posture = postureCal.value;
+        if (!appState.calibrationData.posture) {
+          // 恢复为对象格式，与 calibratePosture 保存的格式一致
+          appState.calibrationData.posture = { value: postureCal.value, normalizedY: postureCal.normalizedY || 0.35 };
+        }
       }
     } catch(err) { console.warn('Restore calibration error:', err); }
   }
@@ -1950,6 +1953,12 @@
       // 综合坐姿评分：以pitch为主，roll和yaw只做轻微惩罚
       // 坐直时面部垂直于屏幕，pitch≈90；轻微偏头/倾斜不应大幅拉低分数
       let postureScore = Math.round(pitchDeg - Math.abs(eyeAngle) * 0.3 - yawOffset * 10);
+      // 应用校准偏移：将当前计算值归一化到校准基准（校准位置=90°）
+      const calPosture = appState.calibrationData && appState.calibrationData.posture;
+      if (calPosture && calPosture.value && calPosture.value > 10 && calPosture.value < 120) {
+        const offset = 90 - calPosture.value;
+        postureScore = postureScore + offset;
+      }
       // NaN 防护并限制在合理范围
       if (isNaN(postureScore) || !isFinite(postureScore)) postureScore = 85;
       postureScore = Math.min(120, Math.max(10, postureScore));
@@ -7120,7 +7129,13 @@ function isPro() {
           const normalizedY = skinCenterY / h;
           window.currentNormalizedY = normalizedY;
           const horizontalOffset = Math.abs(skinCenterX / w - 0.5);
-          let postureAngle = Math.round(90 - (normalizedY - 0.35) * 100 - horizontalOffset * 30);
+          // 使用校准时的 normalizedY 作为基准（替代固定的0.35）
+          let baseY = 0.35;
+          const calPosture = appState.calibrationData && appState.calibrationData.posture;
+          if (calPosture && calPosture.normalizedY && calPosture.normalizedY > 0.1 && calPosture.normalizedY < 0.9) {
+            baseY = calPosture.normalizedY;
+          }
+          let postureAngle = Math.round(90 - (normalizedY - baseY) * 100 - horizontalOffset * 30);
           let clampedPosture = Math.min(120, Math.max(10, postureAngle));
 
           // EAR
