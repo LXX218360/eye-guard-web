@@ -7718,14 +7718,19 @@ function isPro() {
       // 启动时在线校验激活状态（强制联网验证）
       if (appState.pro.activated && appState.pro.code && API_BASE_URL) {
         try {
+          // 5秒超时，防止服务器无响应卡住加载
+          var ctrl = new AbortController();
+          var tmr = setTimeout(function() { ctrl.abort(); }, 5000);
           const verifyRes = await fetch(API_BASE_URL + '/api/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               code: appState.pro.code,
               phone: appState.pro.boundPhone || appState.user.phone || ''
-            })
+            }),
+            signal: ctrl.signal
           });
+          clearTimeout(tmr);
           // 检测HTML响应（API不存在时返回404页面）
           const resCt = verifyRes.headers.get('content-type') || '';
           if (resCt.indexOf('text/html') !== -1) {
@@ -7760,13 +7765,16 @@ function isPro() {
           if (appState.pro.planType !== 'lifetime') {
             _proVerified = false;
             // 不清除本地激活信息，只在 isPro() 中阻止使用
-            // 延迟5秒后自动重试
+            // 延迟5秒后后台静默重试（不阻塞UI）
             setTimeout(function() {
               if (appState.pro.activated && appState.pro.code && API_BASE_URL) {
+                var ctrl2 = new AbortController();
+                setTimeout(function() { ctrl2.abort(); }, 5000);
                 fetch(API_BASE_URL + '/api/verify', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ code: appState.pro.code, phone: appState.pro.boundPhone || appState.user.phone || '' })
+                  body: JSON.stringify({ code: appState.pro.code, phone: appState.pro.boundPhone || appState.user.phone || '' }),
+                  signal: ctrl2.signal
                 }).then(function(r) { return r.json(); }).then(function(d) {
                   if (d.valid) { _proVerified = true; updateProUI(); }
                 }).catch(function() {});
