@@ -1388,3 +1388,246 @@
   @media (min-width: 768px) {
     #mobile-pro-entry { display: none !important; }
   }
+
+    /* ============ 护眼模式 Eye Care Mode ============ */
+    :root {
+      --eye-bg: #f0ede4;
+      --eye-bg2: #f7f4ea;
+      --eye-bg3: #e8e4d8;
+      --eye-ink: #2d2924;
+      --eye-muted: #7a7568;
+      --eye-rule: #d8d3c4;
+      --eye-accent: #5a8f5a;
+      --eye-accent2: #8b7d3a;
+      --eye-danger: #c45c4a;
+      --eye-warning: #c4903a;
+      --eye-success: #5a8f5a;
+      --eye-card-shadow: 0 2px 12px rgba(60,50,20,0.05), 0 1px 3px rgba(60,50,20,0.03);
+      --eye-glass-bg: rgba(247,244,234,0.85);
+      --eye-glass-border: rgba(200,190,170,0.40);
+      --eye-gradient-primary: linear-gradient(135deg, #5a8f5a 0%, #8b7d3a 100%);
+    }
+
+    body.eye-care-mode {
+      background: var(--eye-bg) !important;
+      color: var(--eye-ink) !important;
+    }
+    body.eye-care-mode .content,
+    body.eye-care-mode .main-content,
+    body.eye-care-mode .loading-screen {
+      background: var(--eye-bg) !important;
+    }
+    body.eye-care-mode .panel,
+    body.eye-care-mode .card,
+    body.eye-care-mode .chart-card,
+    body.eye-care-mode .plan-card,
+    body.eye-care-mode .metric-box,
+    body.eye-care-mode .settings-section,
+    body.eye-care-mode .device-status-panel,
+    body.eye-care-mode .scene-mode-panel {
+      background: var(--eye-bg2) !important;
+      border-color: var(--eye-rule) !important;
+      box-shadow: var(--eye-card-shadow) !important;
+    }
+    body.eye-care-mode .sidebar {
+      background: rgba(240,237,228,0.95) !important;
+      border-color: var(--eye-rule) !important;
+    }
+    body.eye-care-mode .header {
+      background: rgba(240,237,228,0.85) !important;
+      border-color: var(--eye-rule) !important;
+    }
+    body.eye-care-mode .ink,
+    body.eye-care-mode .page-title,
+    body.eye-care-mode .panel-title,
+    body.eye-care-mode .chart-title,
+    body.eye-care-mode .metric-value,
+    body.eye-care-mode .settings-section-title {
+      color: var(--eye-ink) !important;
+    }
+    body.eye-care-mode .muted,
+    body.eye-care-mode .panel-desc,
+    body.eye-care-mode .metric-label,
+    body.eye-care-mode .log-tag {
+      color: var(--eye-muted) !important;
+    }
+    body.eye-care-mode .accent,
+    body.eye-care-mode .nav-item.active,
+    body.eye-care-mode .scene-mode-btn.active .sm-name,
+    body.eye-care-mode .tab-item.active {
+      color: var(--eye-accent) !important;
+    }
+    body.eye-care-mode .nav-item.active {
+      background: rgba(90,143,90,0.10) !important;
+    }
+    body.eye-care-mode .btn-primary,
+    body.eye-care-mode .settings-btn.primary {
+      background: var(--eye-gradient-primary) !important;
+    }
+    body.eye-care-mode .pro-badge,
+    body.eye-care-mode .timer-upgrade,
+    body.eye-care-mode .lock-btn,
+    body.eye-care-mode .auto-activate-btn {
+      background: linear-gradient(135deg, #6a9f6a, #9b8d4a) !important;
+    }
+    body.eye-care-mode .danger-text,
+    body.eye-care-mode .metric-danger { color: var(--eye-danger) !important; }
+    body.eye-care-mode .warning-text,
+    body.eye-care-mode .metric-warning { color: var(--eye-warning) !important; }
+    body.eye-care-mode .success-text,
+    body.eye-care-mode .metric-success { color: var(--eye-success) !important; }
+    body.eye-care-mode .bottom-tab-bar {
+      background: rgba(247,244,234,0.85) !important;
+      border-color: var(--eye-glass-border) !important;
+    }
+    body.eye-care-mode .dashboard-notice-bar {
+      background: linear-gradient(135deg, rgba(196,144,58,0.08) 0%, rgba(90,143,90,0.05) 100%) !important;
+      border-color: rgba(196,144,58,0.20) !important;
+    }
+    body.eye-care-mode .monitor-video {
+      border-color: var(--eye-rule) !important;
+    }
+    body.eye-care-mode .form-input,
+    body.eye-care-mode .form-select {
+      background: var(--eye-bg2) !important;
+      border-color: var(--eye-rule) !important;
+      color: var(--eye-ink) !important;
+    }
+    body.eye-care-mode .form-input:focus,
+    body.eye-care-mode .form-select:focus {
+      border-color: var(--eye-accent) !important;
+      box-shadow: 0 0 0 3px rgba(90,143,90,0.15) !important;
+    }
+    body.eye-care-mode .eye-care-toggle.active {
+      background: var(--eye-accent) !important;
+      color: #fff !important;
+    }
+    body.eye-care-mode .compat-banner {
+      background: rgba(196,144,58,0.06) !important;
+      border-color: rgba(196,144,58,0.15) !important;
+      color: #8a6a2a !important;
+    }
+    body.eye-care-mode .log-tag.warn { background: rgba(196,144,58,0.08) !important; color: #a07020 !important; }
+    body.eye-care-mode .log-tag.danger { background: rgba(196,92,74,0.08) !important; color: #a04030 !important; }
+    body.eye-care-mode .log-tag.info { background: rgba(90,143,90,0.08) !important; color: #3a6a3a !important; }
+    body.eye-care-mode .pro-locked-mask { background: rgba(247,244,234,0.7) !important; }
+    body.eye-care-mode .pro-timer-badge { background: rgba(45,41,36,0.92) !important; }
+
+    /* 护眼模式切换按钮 */
+    .eye-care-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--rule);
+      background: var(--bg2);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+    .eye-care-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .eye-care-toggle.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .eye-care-toggle svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ============ 增强移动端适配 Enhanced Mobile Adaptation ============ */
+    /* 平板横屏优化 */
+    body.device-tablet.landscape .monitor-body {
+      flex-direction: row !important;
+    }
+    body.device-tablet.landscape .monitor-sidebar {
+      width: 45% !important;
+      min-width: 320px !important;
+    }
+    body.device-tablet.landscape .monitor-body-right {
+      width: 55% !important;
+    }
+
+    /* 折叠屏/小屏平板优化 */
+    @media (min-width: 600px) and (max-width: 900px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .scene-mode-grid { grid-template-columns: repeat(3, 1fr) !important; }
+      .device-status-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+
+    /* 大屏幕手机优化 */
+    @media (min-width: 390px) and (max-width: 480px) {
+      body.device-mobile .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      body.device-mobile .scene-mode-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+
+    /* 触摸目标最小44px确保可点击 */
+    body.device-mobile .btn,
+    body.device-mobile .scene-mode-btn,
+    body.device-mobile .device-chip,
+    body.device-mobile .tab-item,
+    body.device-mobile .nav-item {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    body.device-tablet .btn,
+    body.device-tablet .scene-mode-btn,
+    body.device-tablet .device-chip,
+    body.device-tablet .tab-item,
+    body.device-tablet .nav-item {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* 移动端字体大小优化 - 更易读 */
+    body.device-mobile .metric-value { font-size: 22px !important; }
+    body.device-mobile .metric-label { font-size: 12px !important; }
+    body.device-tablet .metric-value { font-size: 24px !important; }
+    body.device-tablet .metric-label { font-size: 13px !important; }
+
+    /* 移动端更大间距 */
+    body.device-mobile .panel { padding: 14px; }
+    body.device-tablet .panel { padding: 18px; }
+
+    /* 防止移动端横向滚动 */
+    body.device-mobile, body.device-tablet {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
+    body.device-mobile .content,
+    body.device-tablet .content {
+      max-width: 100vw;
+      overflow-x: hidden;
+    }
+
+    /* iOS Safari 100vh 问题修复 */
+    body.device-mobile .main-content {
+      min-height: -webkit-fill-available;
+    }
+
+    /* 移动端视频容器优化 */
+    body.device-mobile .monitor-video video,
+    body.device-mobile .monitor-video canvas {
+      object-fit: cover;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 平板端侧边栏自动收起宽度调整 */
+    @media (max-width: 1024px) and (min-width: 768px) {
+      .sidebar {
+        width: 220px !important;
+      }
+      .main-content {
+        margin-left: 220px !important;
+        width: calc(100% - 220px) !important;
+      }
+    }
