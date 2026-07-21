@@ -275,22 +275,29 @@
     }
   }
 
-  // 护眼模式切换
-  (function setupEyeCare() {
-    const toggle = document.getElementById('eye-care-toggle');
-    if (!toggle) return;
-    // 从 localStorage 恢复状态
-    const saved = localStorage.getItem('eyeCareMode');
-    if (saved === 'true') {
-      document.body.classList.add('eye-care-mode');
+  function toggleEyeCareMode() {
+    var toggle = document.getElementById('eye-care-toggle');
+    var sidebarToggle = document.getElementById('eye-mode-toggle');
+    var isEyeCare = toggle.classList.contains('active');
+    if (isEyeCare) {
+      toggle.classList.remove('active');
+      if (sidebarToggle) sidebarToggle.classList.remove('active');
+      document.body.classList.remove('eye-care-mode');
+      localStorage.setItem('eyeGuardEyeCare', 'false');
+      // 恢复之前的主题
+      restoreTheme();
+    } else {
       toggle.classList.add('active');
+      if (sidebarToggle) sidebarToggle.classList.add('active');
+      document.body.classList.remove('dark-mode');
+      document.body.classList.remove('light-mode');
+      document.body.classList.add('eye-care-mode');
+      localStorage.setItem('eyeGuardEyeCare', 'true');
     }
-    toggle.addEventListener('click', () => {
-      const isActive = document.body.classList.toggle('eye-care-mode');
-      toggle.classList.toggle('active', isActive);
-      localStorage.setItem('eyeCareMode', isActive ? 'true' : 'false');
-      showAlert(isActive ? '护眼模式已开启' : '护眼模式已关闭', 'info', '&#x1F319;');
-    });
+  }
+  (function setupEyeCare() {
+    var toggle = document.getElementById('eye-care-toggle');
+    if (toggle) toggle.addEventListener('click', toggleEyeCareMode);
   })();
 
   // Settings shortcut
@@ -589,17 +596,9 @@
     }, 1500);
   });
 
-  // ===================== Eye Mode =====================
-  document.getElementById('eye-mode-toggle').addEventListener('click', () => {
-    appState.eyeMode = !appState.eyeMode;
-    const el = document.getElementById('eye-mode-toggle');
-    el.classList.toggle('active', appState.eyeMode);
-    const mainEl = document.querySelector('.main-content');
-    if (appState.eyeMode) {
-      mainEl.style.filter = 'sepia(0.15) saturate(0.9)';
-    } else {
-      mainEl.style.filter = 'none';
-    }
+  // ===================== Eye Mode (统一为 eye-care-mode) =====================
+  document.getElementById('eye-mode-toggle').addEventListener('click', function() {
+    toggleEyeCareMode();
   });
 
   // ===================== Calibration =====================
@@ -953,10 +952,10 @@
     const badge = document.querySelector('.status-badge');
     el.textContent = count + ' 设备在线';
     if (count > 0) {
-      badge.style.background = '#dcfce7';
+      badge.style.background = 'var(--accent2-light, rgba(5,150,105,0.08))';
       badge.style.color = 'var(--success)';
     } else {
-      badge.style.background = '#fef3c7';
+      badge.style.background = 'var(--warning-light, rgba(245,158,11,0.08))';
       badge.style.color = 'var(--warning)';
     }
   }
@@ -1799,10 +1798,15 @@
       return { url: url, fromCache: true };
     }
 
-    // 2. 缓存未命中，从网络下载（先同域再跨域）
-    console.log('[模型缓存] 本地无缓存，从服务器下载...');
+    // 2. 缓存未命中，从网络下载（优先官方CDN，再同域/PyAnywhere）
+    console.log('[模型缓存] 本地无缓存，从网络下载...');
     var blob = null;
-    var sources = ['face_landmarker.task']; // 优先同域下载
+    // 官方CDN源优先（稳定可靠，全球加速）
+    var sources = [
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/face_landmarker.task',
+      'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+      'face_landmarker.task'
+    ];
     // GitHub Pages 等外部部署时，追加 PythonAnywhere 作为备用源
     var apiBase = typeof API_BASE_URL !== 'undefined' && API_BASE_URL ? API_BASE_URL : '';
     if (apiBase && location.hostname.indexOf('pythonanywhere.com') === -1) {
@@ -5664,7 +5668,7 @@
         cb.addEventListener('change', function() {
           if (cb.checked) {
             btn.disabled = false;
-            btn.style.background = 'linear-gradient(135deg,#00d4aa,#0099ff)';
+            btn.style.background = 'var(--gradient-primary)';
             btn.style.color = '#fff';
             btn.style.border = 'none';
           } else {
@@ -6615,15 +6619,12 @@ function isPro() {
       document.removeEventListener('visibilitychange', window._visHandler);
       window._visHandler = function() {
         if (!document.hidden && appState.monitorActive) {
-          // 页面恢复可见，重置时间基准，防止历史数据被清空
+          // 页面恢复可见，重置时间基准
           mediapipeLastVideoTime = -1;
-          // 不要清空 blinkHistory，只过滤
           const oneMinAgo = Date.now() - 60000;
           blinkHistory = blinkHistory.filter(function(t) { return t > oneMinAgo; });
-          // 标记为恢复中，等视频ready再继续检测
           window._monitorResuming = true;
           updateMonitorStatus('face', 'warn', '画面分析: 恢复中 (等待视频帧...)');
-          // 延迟检查视频是否恢复
           var resumeCheck = setInterval(function() {
             var v = document.getElementById('monitor-video');
             if (v && v.readyState >= 2) {
@@ -6634,8 +6635,20 @@ function isPro() {
           }, 500);
         }
         if (document.hidden && appState.monitorActive) {
-          // 进入后台，记录时间
           window._backgroundTime = Date.now();
+          // 后台运行时使用 setInterval 保证循环不被节流
+          if (!window._bgMonitorInterval) {
+            window._bgMonitorInterval = setInterval(function() {
+              if (!document.hidden) { clearInterval(window._bgMonitorInterval); window._bgMonitorInterval = null; return; }
+              // 后台时继续处理数据（视频可能冻结，用时间推算）
+              if (appState.monitorActive && monitorSessionStart) {
+                const elapsed = Math.floor((Date.now() - monitorSessionStart) / 1000);
+                const min = Math.floor(elapsed / 60);
+                const sec = elapsed % 60;
+                updateMetricValue('m-session-time', min + ':' + String(sec).padStart(2, '0'), 'good');
+              }
+            }, 1000);
+          }
         }
       };
       document.addEventListener('visibilitychange', window._visHandler);
@@ -7295,11 +7308,10 @@ function isPro() {
           updateMetricValue('m-distance', smoothDistCm, distLevel);
           updateMetricValue('m-posture', smoothPosture + '\u00B0', postureLevel);
           updateMetricValue('m-ear', smoothEAR.toFixed(2), earLevel);
-          if (smoothBlinkRate === -1) {
-            updateMetricValue('m-blink-rate', '采集中', 'warn');
-          } else {
-            updateMetricValue('m-blink-rate', smoothBlinkRate, blinkLevel);
-          }
+          // 眨眼频率：使用时间间隔计算，不再显示"采集中"
+          var displayBlinkRate = Math.round(smoothBlinkRate);
+          if (displayBlinkRate < 0) displayBlinkRate = 0;
+          updateMetricValue('m-blink-rate', displayBlinkRate + ' 次/分', displayBlinkRate < 10 ? 'bad' : (displayBlinkRate < 15 ? 'warn' : 'good'));
           updateMonitorStatus('face', 'warn', '降级模式: YCbCr肤色检测 (MediaPipe未就绪)');
           updateMonitorStatus('ear', earLevel, '眨眼检测: ' + smoothBlinkRate + '次/分');
           updateMonitorStatus('dist', distLevel, '距离估算: ' + smoothDistCm + 'cm');
@@ -7494,11 +7506,7 @@ function isPro() {
     updateMonitorStatus('ear', 'warn', '眨眼检测: 已停止');
     updateMonitorStatus('dist', 'warn', '距离估算: 已停止');
     updateMonitorStatus('posture', 'warn', '坐姿检测: 已停止');
-    // 停止监测后将实时指标重置为"暂停采集"
-    ['m-distance', 'm-posture', 'm-ear', 'm-blink-rate'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) { el.textContent = '暂停采集'; el.className = 'metric-value'; }
-    });
+    // 停止监测后保留最后一次有效数据（不重置指标，让它们显示最后一次记录的值）
   }
 
   // Web Audio API beep
@@ -7889,10 +7897,8 @@ function isPro() {
     if (!appState.thresholds.posture) appState.thresholds.posture = 70;
     if (!appState.thresholds.postureWarn) appState.thresholds.postureWarn = appState.thresholds.posture + 10;
 
-    // Apply eye mode
-    document.getElementById('eye-mode-toggle').classList.toggle('active', appState.eyeMode);
-    if (appState.eyeMode) { document.querySelector('.main-content').style.filter = 'sepia(0.15) saturate(0.9)'; }
-    else { document.querySelector('.main-content').style.filter = 'none'; }
+    // Apply eye mode (统一使用 eye-care-mode，由 restoreTheme 处理)
+    // filter-based 恢复逻辑已移除，统一由 body.eye-care-mode class + CSS 处理
 
     // Setup welcome or skip
     setupWelcome();
@@ -8924,6 +8930,15 @@ function isPro() {
 
   // ===================== 主题切换 =====================
   function toggleTheme() {
+    // 切换主题时自动关闭护眼模式
+    var eyeCareToggle = document.getElementById('eye-care-toggle');
+    var sidebarEyeToggle = document.getElementById('eye-mode-toggle');
+    if (eyeCareToggle && eyeCareToggle.classList.contains('active')) {
+      eyeCareToggle.classList.remove('active');
+      if (sidebarEyeToggle) sidebarEyeToggle.classList.remove('active');
+      document.body.classList.remove('eye-care-mode');
+      localStorage.setItem('eyeGuardEyeCare', 'false');
+    }
     var toggle = document.getElementById('setting-theme-toggle');
     var isDark = toggle.classList.contains('active');
     if (isDark) {
@@ -8947,6 +8962,18 @@ function isPro() {
 
   function restoreTheme() {
     var savedTheme = localStorage.getItem('eyeGuardTheme');
+    // 如果护眼模式开启，优先保持护眼模式，不恢复主题
+    var eyeCare = localStorage.getItem('eyeGuardEyeCare');
+    if (eyeCare === 'true') {
+      document.body.classList.remove('dark-mode');
+      document.body.classList.remove('light-mode');
+      document.body.classList.add('eye-care-mode');
+      var eyeToggle = document.getElementById('eye-care-toggle');
+      var sidebarToggle = document.getElementById('eye-mode-toggle');
+      if (eyeToggle) eyeToggle.classList.add('active');
+      if (sidebarToggle) sidebarToggle.classList.add('active');
+      return;
+    }
     if (!savedTheme) {
       var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       savedTheme = prefersDark ? 'dark' : 'light';
