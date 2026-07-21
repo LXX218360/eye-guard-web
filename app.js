@@ -274,6 +274,24 @@
     }
   }
 
+  // 护眼模式切换
+  (function setupEyeCare() {
+    const toggle = document.getElementById('eye-care-toggle');
+    if (!toggle) return;
+    // 从 localStorage 恢复状态
+    const saved = localStorage.getItem('eyeCareMode');
+    if (saved === 'true') {
+      document.body.classList.add('eye-care-mode');
+      toggle.classList.add('active');
+    }
+    toggle.addEventListener('click', () => {
+      const isActive = document.body.classList.toggle('eye-care-mode');
+      toggle.classList.toggle('active', isActive);
+      localStorage.setItem('eyeCareMode', isActive ? 'true' : 'false');
+      showAlert(isActive ? '护眼模式已开启' : '护眼模式已关闭', 'info', '&#x1F319;');
+    });
+  })();
+
   // Settings shortcut
   document.getElementById('header-settings-btn').addEventListener('click', () => {
     if (typeof backupSettings === 'function') backupSettings();
@@ -726,13 +744,14 @@
       calSamples.posture.sort((a, b) => a - b);
       const trimmed = calSamples.posture.slice(1, -1);
       const avgPosture = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
+      const factor = parseFloat((90 / avgPosture).toFixed(4));
       const normalizedY = window.currentNormalizedY || 0.35;
-      await dbPut('calibration', { key: 'posture_baseline', value: avgPosture, normalizedY: normalizedY, rawSamples: calSamples.posture, timestamp: Date.now() });
-      appState.calibrationData.posture = { value: avgPosture, normalizedY: normalizedY };
+      await dbPut('calibration', { key: 'posture_baseline', factor: factor, value: avgPosture, normalizedY: normalizedY, rawSamples: calSamples.posture, timestamp: Date.now() });
+      appState.calibrationData.posture = { factor: factor, normalizedY: normalizedY };
       await dbPut('settings', { key:'calibrationData', data: appState.calibrationData });
-      setCalStatus('posture', 'done', avgPosture + '\u00B0');
-      showAlert('坐姿基线校准完成：' + avgPosture + '\u00B0 (偏移=' + (90 - avgPosture) + ')', 'info', '&#x2705;');
-      console.log('[校准坐姿] 成功，基准值:', avgPosture, 'normalizedY:', normalizedY, 'offset:', 90 - avgPosture);
+      setCalStatus('posture', 'done', factor + 'x');
+      showAlert('坐姿基线校准完成：系数=' + factor + ' (原始=' + avgPosture + '\u00B0)', 'info', '&#x2705;');
+      console.log('[校准坐姿] 成功，系数:', factor, '原始值:', avgPosture, 'normalizedY:', normalizedY);
     } else {
       setCalStatus('posture', 'pending', '未校准');
       showAlert('坐姿校准失败：未采集到足够数据（检测到' + calSamples.posture.length + '个样本，需至少3个）', 'danger', '&#x26A0;');
@@ -787,11 +806,12 @@
     } else { setCalStatus('ear', 'pending', '未校准'); }
     if (postureResult !== null) {
       const postureVal = Math.round(postureResult);
+      const factor = parseFloat((90 / postureVal).toFixed(4));
       const normalizedY = window.currentNormalizedY || 0.35;
-      await dbPut('calibration', { key: 'posture_baseline', value: postureVal, normalizedY: normalizedY, rawSamples: calSamples.posture, timestamp: Date.now() });
-      appState.calibrationData.posture = { value: postureVal, normalizedY: normalizedY };
+      await dbPut('calibration', { key: 'posture_baseline', factor: factor, value: postureVal, normalizedY: normalizedY, rawSamples: calSamples.posture, timestamp: Date.now() });
+      appState.calibrationData.posture = { factor: factor, normalizedY: normalizedY };
       await dbPut('settings', { key:'calibrationData', data: appState.calibrationData });
-      setCalStatus('posture', 'done', postureVal + '\u00B0');
+      setCalStatus('posture', 'done', factor + 'x');
     } else { setCalStatus('posture', 'pending', '未校准'); }
     btn.disabled = false;
     btn.textContent = '一键校准全部';
@@ -829,10 +849,18 @@
       }
       const postureCal = await dbGet('calibration', 'posture_baseline');
       if (postureCal) {
-        setCalStatus('posture', 'done', postureCal.value + '\u00B0');
-        if (!appState.calibrationData.posture) {
-          // 恢复为对象格式，与 calibratePosture 保存的格式一致
-          appState.calibrationData.posture = { value: postureCal.value, normalizedY: postureCal.normalizedY || 0.35 };
+        if (postureCal.factor && postureCal.factor > 0.5 && postureCal.factor < 2.0) {
+          setCalStatus('posture', 'done', postureCal.factor + 'x');
+          if (!appState.calibrationData.posture) {
+            appState.calibrationData.posture = { factor: postureCal.factor, normalizedY: postureCal.normalizedY || 0.35 };
+          }
+        } else if (postureCal.value && postureCal.value > 10 && postureCal.value < 120) {
+          // 兼容旧数据：显示原始值，但存储时会自动转换为系数
+          setCalStatus('posture', 'done', postureCal.value + '\u00B0');
+          if (!appState.calibrationData.posture) {
+            const factor = parseFloat((90 / postureCal.value).toFixed(4));
+            appState.calibrationData.posture = { factor: factor, normalizedY: postureCal.normalizedY || 0.35 };
+          }
         }
       }
     } catch(err) { console.warn('Restore calibration error:', err); }
@@ -1966,14 +1994,19 @@
       // NaN 防护
       if (isNaN(rawScore) || !isFinite(rawScore)) rawScore = 85;
       rawScore = Math.min(120, Math.max(10, rawScore));
-      // 暴露原始值（未应用校准偏移）供校准采集使用
+      // 暴露原始值（未应用校准系数）供校准采集使用
       window.currentRawPostureScore = rawScore;
-      // 应用校准偏移：将当前计算值归一化到校准基准（校准位置=90°）
+      // 应用校准系数：将当前计算值按比例缩放到标准（校准位置=90°）
       let postureScore = rawScore;
       const calPosture = appState.calibrationData && appState.calibrationData.posture;
-      if (calPosture && calPosture.value && calPosture.value > 10 && calPosture.value < 120) {
-        const offset = 90 - calPosture.value;
-        postureScore = postureScore + offset;
+      if (calPosture && calPosture.factor && calPosture.factor > 0.5 && calPosture.factor < 2.0) {
+        postureScore = Math.round(rawScore * calPosture.factor);
+      } else if (calPosture && calPosture.value && calPosture.value > 10 && calPosture.value < 120) {
+        // 兼容旧数据（偏移量格式）：转换为系数
+        const factor = 90 / calPosture.value;
+        postureScore = Math.round(rawScore * factor);
+        // 升级存储为系数格式
+        appState.calibrationData.posture = { factor: factor, normalizedY: calPosture.normalizedY || 0.35 };
       }
       // NaN 防护并限制在合理范围
       if (isNaN(postureScore) || !isFinite(postureScore)) postureScore = 85;
@@ -7145,17 +7178,21 @@ function isPro() {
           const normalizedY = skinCenterY / h;
           window.currentNormalizedY = normalizedY;
           const horizontalOffset = Math.abs(skinCenterX / w - 0.5);
-          // 先计算原始值（固定基准0.35，未应用校准偏移）供校准采集使用
+          // 先计算原始值（固定基准0.35，未应用校准系数）供校准采集使用
           const rawPostureAngle = Math.round(90 - (normalizedY - 0.35) * 100 - horizontalOffset * 30);
           const rawClampedPosture = Math.min(120, Math.max(10, rawPostureAngle));
           window.currentRawPostureScore = rawClampedPosture;
-          // 使用校准时的 normalizedY 作为基准（替代固定的0.35）计算显示值
-          let baseY = 0.35;
+          // 应用校准系数计算显示值
+          let postureAngle = rawPostureAngle;
           const calPosture = appState.calibrationData && appState.calibrationData.posture;
-          if (calPosture && calPosture.normalizedY && calPosture.normalizedY > 0.1 && calPosture.normalizedY < 0.9) {
-            baseY = calPosture.normalizedY;
+          if (calPosture && calPosture.factor && calPosture.factor > 0.5 && calPosture.factor < 2.0) {
+            postureAngle = Math.round(rawPostureAngle * calPosture.factor);
+          } else if (calPosture && calPosture.value && calPosture.value > 10 && calPosture.value < 120) {
+            // 兼容旧数据：转换为系数
+            const factor = 90 / calPosture.value;
+            postureAngle = Math.round(rawPostureAngle * factor);
+            appState.calibrationData.posture = { factor: factor, normalizedY: calPosture.normalizedY || 0.35 };
           }
-          let postureAngle = Math.round(90 - (normalizedY - baseY) * 100 - horizontalOffset * 30);
           let clampedPosture = Math.min(120, Math.max(10, postureAngle));
 
           // EAR
