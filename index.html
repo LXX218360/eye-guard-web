@@ -74,14 +74,14 @@
   <div class="loading-content">
     <div class="loading-logo">&#x1F441;&#xFE0F;</div>
     <div class="loading-title">护眼精灵</div>
-    <div class="loading-subtitle">正在初始化智能监测引擎...</div>
+    <div class="loading-subtitle">正在初始化界面...</div>
     <div class="loading-progress-bar">
       <div class="loading-progress-track">
         <div class="loading-progress-fill" id="loading-progress-fill" style="width:0%"></div>
       </div>
     </div>
     <div class="loading-progress-text" id="loading-progress-text">准备中...</div>
-    <div class="loading-hint">首次加载可能需要 10-30 秒，请耐心等待</div>
+    <div class="loading-hint">界面就绪后即可使用，AI模型将在后台自动加载</div>
   </div>
 </div>
 <script>
@@ -968,7 +968,7 @@ setTimeout(function() {
               <div class="monitor-placeholder" id="monitor-placeholder">
                 <div class="cam-icon">&#x1F4F7;</div>
                 <div>选择设备并开启监测</div>
-                <button class="cam-auth-btn" id="btn-start-monitor" disabled style="opacity:0.6;cursor:not-allowed;">AI模型加载中...</button>
+                <button class="cam-auth-btn" id="btn-start-monitor">开启监测</button>
                 <div id="ai-loading-bar" style="width:80%;max-width:260px;margin:8px auto 0;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;overflow:hidden;">
                   <div id="ai-loading-progress" style="width:0%;height:100%;background:linear-gradient(90deg,#c8874d,#e8a84d);border-radius:2px;transition:width 0.4s ease;"></div>
                 </div>
