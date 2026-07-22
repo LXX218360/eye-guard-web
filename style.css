@@ -1544,16 +1544,22 @@
     body.eye-care-mode .page-title,
     body.eye-care-mode .panel-title,
     body.eye-care-mode .chart-title,
-    body.eye-care-mode .metric-value,
     body.eye-care-mode .settings-section-title {
       color: var(--eye-ink) !important;
     }
+    /* 仪表数值和状态色保持原主题语义色，不随护眼模式变化 */
+    body.eye-care-mode .monitor-metrics .metric-value,
+    body.eye-care-mode .stats-grid .stat-value,
+    body.eye-care-mode .stats-grid .stat-label,
+    body.eye-care-mode .stats-grid .stat-trend {
+      color: inherit !important;
+    }
     body.eye-care-mode .muted,
     body.eye-care-mode .panel-desc,
-    body.eye-care-mode .metric-label,
     body.eye-care-mode .log-tag {
       color: var(--eye-muted) !important;
     }
+    /* 护眼模式保留原主题语义状态色，不覆盖 success/warning/danger */
     body.eye-care-mode .accent,
     body.eye-care-mode .nav-item.active,
     body.eye-care-mode .scene-mode-btn.active .sm-name,
@@ -1573,12 +1579,24 @@
     body.eye-care-mode .auto-activate-btn {
       background: var(--eye-gradient-primary) !important;
     }
-    body.eye-care-mode .danger-text,
-    body.eye-care-mode .metric-danger { color: var(--eye-danger) !important; }
-    body.eye-care-mode .warning-text,
-    body.eye-care-mode .metric-warning { color: var(--eye-warning) !important; }
-    body.eye-care-mode .success-text,
-    body.eye-care-mode .metric-success { color: var(--eye-success) !important; }
+    /* 语义状态色保持原主题，不随护眼变化 */
+    body.eye-care-mode .danger-text { color: var(--danger) !important; }
+    body.eye-care-mode .metric-danger { color: var(--danger) !important; }
+    body.eye-care-mode .warning-text { color: var(--warning) !important; }
+    body.eye-care-mode .metric-warning { color: var(--warning) !important; }
+    body.eye-care-mode .success-text { color: var(--success) !important; }
+    body.eye-care-mode .metric-success { color: var(--success) !important; }
+    /* stat-card 左侧指示条保持原主题色 */
+    body.eye-care-mode .stat-card.blue::before { background: linear-gradient(180deg,var(--accent),#e8b06a) !important; }
+    body.eye-care-mode .stat-card.green::before { background: linear-gradient(180deg,var(--accent2),#8bc48b) !important; }
+    body.eye-care-mode .stat-card.orange::before { background: linear-gradient(180deg,var(--warning),#e8c06a) !important; }
+    body.eye-care-mode .stat-card.purple::before { background: linear-gradient(180deg,var(--purple),#b09ad0) !important; }
+    /* metric-box 状态色保持原主题 */
+    body.eye-care-mode .metric-value.good { color: var(--success) !important; }
+    body.eye-care-mode .metric-value.warn { color: var(--warning) !important; }
+    body.eye-care-mode .metric-value.bad { color: var(--danger) !important; }
+    body.eye-care-mode .metric-label,
+    body.eye-care-mode .metric-unit { color: var(--muted) !important; }
     body.eye-care-mode .bottom-tab-bar {
       background: var(--eye-glass-bg) !important;
       border-color: var(--eye-glass-border) !important;
