@@ -1711,6 +1711,67 @@
     body.eye-care-mode .modal-overlay { background: rgba(0,0,0,0.5) !important; }
     body.eye-care-mode .modal-content { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; color: var(--eye-ink) !important; box-shadow: var(--eye-card-shadow) !important; }
 
+    /* ============ 监测页面特定组件 ============ */
+    /* 视频区域 */
+    body.eye-care-mode .monitor-video { background: var(--eye-bg3) !important; }
+    /* 摄像头授权按钮 */
+    body.eye-care-mode .cam-auth-btn {
+      background: var(--eye-gradient-primary) !important;
+      color: var(--eye-bg2) !important;
+      box-shadow: 0 4px 18px var(--eye-glow-primary) !important;
+    }
+    body.eye-care-mode .cam-auth-btn:hover { box-shadow: 0 8px 28px var(--eye-glow-primary) !important; }
+    /* 监测状态条 */
+    body.eye-care-mode .monitor-status-bar { background: var(--eye-bg3) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .monitor-status-item { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; color: var(--eye-ink) !important; }
+    body.eye-care-mode .monitor-status-item:hover { border-color: var(--eye-accent) !important; }
+    /* AI信息条 */
+    body.eye-care-mode .monitor-ai-info { background: var(--eye-bg2) !important; color: var(--eye-muted) !important; }
+    body.eye-care-mode .monitor-ai-info .info-tag {
+      background: linear-gradient(135deg, var(--eye-glow-soft), rgba(0,0,0,0.02)) !important;
+      color: var(--eye-success) !important;
+    }
+
+    /* ============ 设备状态页面 ============ */
+    body.eye-care-mode .device-status-card {
+      background: var(--eye-bg2) !important;
+      border-color: var(--eye-rule) !important;
+      border-left-color: var(--eye-rule) !important;
+    }
+    body.eye-care-mode .device-status-card.active-device {
+      background: linear-gradient(135deg, var(--eye-glow-soft), rgba(0,0,0,0.02)) !important;
+      box-shadow: 0 4px 20px var(--eye-glow-soft) !important;
+    }
+    body.eye-care-mode .device-status-card.disabled-device { opacity: 0.55 !important; }
+    body.eye-care-mode .device-status-card.need-auth { border-left-color: var(--warning) !important; }
+    body.eye-care-mode .device-status-card-name { color: var(--eye-ink) !important; }
+    body.eye-care-mode .device-status-card-desc { color: var(--eye-muted) !important; }
+    body.eye-care-mode .device-toggle-btn { background: var(--eye-rule) !important; }
+    body.eye-care-mode .device-toggle-btn.active { background: var(--eye-accent) !important; }
+    body.eye-care-mode .device-info-bar { border-color: var(--eye-rule) !important; color: var(--eye-muted) !important; }
+    body.eye-care-mode .device-info-item strong { color: var(--eye-ink) !important; }
+
+    /* ============ 健康报告页面 ============ */
+    body.eye-care-mode .report-header {
+      background: var(--eye-gradient-primary) !important;
+      color: var(--eye-bg2) !important;
+      box-shadow: 0 8px 30px var(--eye-glow-primary) !important;
+    }
+    body.eye-care-mode .report-card {
+      background: var(--eye-bg2) !important;
+      border-color: var(--eye-rule) !important;
+      box-shadow: var(--eye-card-shadow) !important;
+    }
+    body.eye-care-mode .report-card:hover { box-shadow: var(--eye-card-shadow) !important; }
+    body.eye-care-mode .report-card-title { color: var(--eye-ink) !important; }
+    body.eye-care-mode .report-item { border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .report-item-label { color: var(--eye-muted) !important; }
+    body.eye-care-mode .report-item-value { color: var(--eye-ink) !important; }
+    /* 报告页数据保持语义色 */
+    body.eye-care-mode .report-item-value.good { color: var(--success) !important; }
+    body.eye-care-mode .report-item-value.warn { color: var(--warning) !important; }
+    body.eye-care-mode .report-item-value.bad { color: var(--danger) !important; }
+
     /* 护眼模式切换按钮 */
     .eye-care-toggle {
       display: inline-flex;
