@@ -6674,15 +6674,19 @@ function isPro() {
             window._pendingBackgroundAlerts.forEach(function(alertInfo) {
               showAlert(alertInfo.msg, alertInfo.type, alertInfo.icon);
             });
+            // 额外用 modal 弹窗确保用户看到（比 toast 更醒目）
+            showModal('后台监测提醒', '您刚才切换到了其他应用，监测在后台继续运行。请保持正确的坐姿！', '我知道了', false);
             window._pendingBackgroundAlerts = [];
           }
           // 发送桌面通知提醒用户（如果已授权）
           if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('眼部卫士', {
-              body: '监测已恢复，请注意保持正确坐姿',
-              icon: '',
-              tag: 'eye-guard-resume'
-            });
+            try {
+              new Notification('眼部卫士', {
+                body: '监测已恢复，请注意保持正确坐姿',
+                icon: '',
+                tag: 'eye-guard-resume'
+              });
+            } catch(e) { console.warn('[通知] Notification发送失败:', e); }
           }
 
           updateMonitorStatus('face', 'warn', '画面分析: 恢复中 (等待视频帧...)');
@@ -6709,19 +6713,23 @@ function isPro() {
             // 尝试桌面通知
             if ('Notification' in window) {
               if (Notification.permission === 'granted') {
-                new Notification('眼部卫士', {
-                  body: alertMsg,
-                  icon: '',
-                  tag: 'eye-guard-background'
-                });
+                try {
+                  new Notification('眼部卫士', {
+                    body: alertMsg,
+                    icon: '',
+                    tag: 'eye-guard-background'
+                  });
+                } catch(e) { console.warn('[通知] 后台Notification发送失败:', e); }
               } else if (Notification.permission === 'default') {
                 Notification.requestPermission().then(function(perm) {
                   if (perm === 'granted') {
-                    new Notification('眼部卫士', {
-                      body: alertMsg,
-                      icon: '',
-                      tag: 'eye-guard-background'
-                    });
+                    try {
+                      new Notification('眼部卫士', {
+                        body: alertMsg,
+                        icon: '',
+                        tag: 'eye-guard-background'
+                      });
+                    } catch(e) { console.warn('[通知] 后台Notification发送失败:', e); }
                   }
                 });
               }
@@ -6747,6 +6755,12 @@ function isPro() {
       runMonitorLoop(video);
       startFreeTimer();
       showAlert('监测已开启', 'info', '&#x1F441;');
+      // 电脑版：在页面可见时主动请求桌面通知权限，避免切后台时无法弹窗授权
+      if (!IS_MOBILE && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission(function(perm) {
+          if (perm === 'granted') console.log('[通知] 桌面通知权限已获取');
+        });
+      }
       // 更新日志列表
       const logList = document.getElementById('monitor-log-list');
       if (logList) {
