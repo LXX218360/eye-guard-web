@@ -6682,6 +6682,25 @@ function isPro() {
         // ========== 页面切到后台 ==========
         if (document.hidden && appState.monitorActive) {
           window._backgroundTime = Date.now();
+          // 桌面通知：页面切到后台时发送系统通知（Notification API 在页面 hidden 时也能工作）
+          if (!IS_MOBILE && 'Notification' in window) {
+            console.log('[通知] visibilitychange->hidden, Notification.permission =', Notification.permission);
+            if (Notification.permission === 'granted') {
+              try {
+                var n = new Notification('眼部卫士 - 后台监测中', {
+                  body: '您已离开页面，监测仍在后台运行。请保持正确的坐姿！',
+                  icon: '',
+                  tag: 'eye-guard-bg-' + Date.now(),
+                  requireInteraction: false
+                });
+                console.log('[通知] 桌面通知已发送');
+              } catch(e) { console.warn('[通知] 发送失败:', e); }
+            } else if (Notification.permission === 'default') {
+              console.warn('[通知] 权限未授权，无法发送桌面通知');
+            } else {
+              console.warn('[通知] 权限被拒绝，请在浏览器设置中允许通知');
+            }
+          }
           // 后台运行时使用 setInterval 保证循环不被节流
           if (!window._bgMonitorInterval) {
             window._bgMonitorInterval = setInterval(function() {
@@ -6736,10 +6755,29 @@ function isPro() {
       startFreeTimer();
       showAlert('监测已开启', 'info', '&#x1F441;');
       // 电脑版：在页面可见时主动请求桌面通知权限，避免切后台时无法弹窗授权
-      if (!IS_MOBILE && 'Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission(function(perm) {
-          if (perm === 'granted') console.log('[通知] 桌面通知权限已获取');
-        });
+      if (!IS_MOBILE && 'Notification' in window) {
+        if (Notification.permission === 'default') {
+          // 用 modal 引导用户授权通知
+          showModal('开启桌面通知', '为了在您离开页面时能收到提醒，请允许桌面通知权限。\n\n点击"确认"后，浏览器会弹出通知授权请求，请选择"允许"。', '允许通知', false, function() {
+            Notification.requestPermission().then(function(perm) {
+              console.log('[通知] 权限请求结果:', perm);
+              if (perm === 'granted') {
+                // 立即发一条测试通知
+                try {
+                  new Notification('眼部卫士', { body: '桌面通知已开启，离开页面时将提醒您保持坐姿', icon: '', tag: 'eye-guard-test' });
+                } catch(e) {}
+                showAlert('桌面通知已开启', 'info', '&#x1F514;');
+              } else {
+                showAlert('未开启通知权限，离开页面时将无法收到桌面提醒', 'warn', '&#x26A0;');
+              }
+            });
+          });
+        } else if (Notification.permission === 'granted') {
+          console.log('[通知] 权限已授权');
+        } else {
+          console.log('[通知] 权限被拒绝');
+          showAlert('桌面通知权限被拒绝，建议在浏览器设置中允许通知以接收后台提醒', 'warn', '&#x26A0;');
+        }
       }
       // 更新日志列表
       const logList = document.getElementById('monitor-log-list');
