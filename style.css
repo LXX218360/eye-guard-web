@@ -1483,6 +1483,16 @@
     body.eye-care-mode {
       background: var(--eye-bg) !important;
       color: var(--eye-ink) !important;
+      /* 覆盖全局主题变量，使所有使用 var(--bg2) 等的组件自动跟随护眼模式 */
+      --bg: var(--eye-bg);
+      --bg2: var(--eye-bg2);
+      --bg3: var(--eye-bg3);
+      --ink: var(--eye-ink);
+      --muted: var(--eye-muted);
+      --rule: var(--eye-rule);
+      --glass-border: var(--eye-glass-border);
+      --card-shadow: var(--eye-card-shadow);
+      --glass-bg: var(--eye-glass-bg);
     }
     body.eye-care-mode .content,
     body.eye-care-mode .main-content,
