@@ -1910,6 +1910,64 @@
     body.eye-care-mode .report-item-value.warn { color: var(--warning) !important; }
     body.eye-care-mode .report-item-value.bad { color: var(--danger) !important; }
 
+    /* ============ 剩余遗漏组件全面覆盖 ============ */
+    /* 欢迎弹窗 */
+    body.eye-care-mode .welcome-overlay { background: linear-gradient(135deg, var(--eye-bg), var(--eye-bg2)) !important; }
+    body.eye-care-mode .welcome-card { background: var(--eye-bg2) !important; box-shadow: 0 16px 64px var(--eye-glow-primary) !important; }
+    body.eye-care-mode .welcome-card h2 { color: var(--eye-ink) !important; }
+    body.eye-care-mode .welcome-card p { color: var(--eye-muted) !important; }
+    /* 用户编辑面板 */
+    body.eye-care-mode .user-edit-panel { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; box-shadow: var(--eye-card-shadow) !important; }
+    body.eye-care-mode .user-edit-panel-title { color: var(--eye-ink) !important; }
+    body.eye-care-mode .user-edit-backdrop { background: rgba(0,0,0,0.3) !important; }
+    /* live-dot 指示灯 */
+    body.eye-care-mode .live-dot { background: var(--eye-accent) !important; }
+    body.eye-care-mode .live-dot.active { background: var(--eye-success) !important; }
+    body.eye-care-mode .live-dot.inactive { background: var(--eye-muted) !important; }
+    /* ai-metric-mini 卡片 */
+    body.eye-care-mode .ai-metric-mini { background: var(--eye-bg3) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .ai-metric-mini-label { color: var(--eye-muted) !important; }
+    body.eye-care-mode .ai-metric-mini-value.good { color: var(--success) !important; }
+    body.eye-care-mode .ai-metric-mini-value.warn { color: var(--warning) !important; }
+    body.eye-care-mode .ai-metric-mini-value.bad { color: var(--danger) !important; }
+    /* ai-algo-tag */
+    body.eye-care-mode .ai-algo-tag { background: linear-gradient(135deg, var(--eye-glow-soft), rgba(0,0,0,0.02)) !important; color: var(--eye-success) !important; }
+    /* ai-pulse */
+    body.eye-care-mode .ai-monitor-bar-title .ai-pulse { background: var(--eye-success) !important; }
+    /* 场景模式面板标题 */
+    body.eye-care-mode .scene-mode-title { color: var(--eye-ink) !important; }
+    /* 场景模式按钮图标 */
+    body.eye-care-mode .scene-mode-btn .sm-icon { /* emoji保持不变 */ }
+    body.eye-care-mode .scene-mode-btn .sm-name { color: var(--eye-ink) !important; }
+    /* 设备状态指示器 */
+    body.eye-care-mode .device-status-indicator.connected { background: rgba(74,158,138,0.1) !important; }
+    body.eye-care-mode .device-status-indicator.available { background: rgba(74,158,138,0.1) !important; }
+    body.eye-care-mode .device-status-indicator.disconnected { background: var(--eye-bg3) !important; color: var(--eye-muted) !important; }
+    body.eye-care-mode .device-status-indicator.need-auth { background: rgba(196,144,58,0.1) !important; }
+    /* 监测占位符 */
+    body.eye-care-mode .monitor-placeholder { color: var(--eye-muted) !important; }
+    body.eye-care-mode .monitor-placeholder .cam-icon { background: var(--eye-glow-soft) !important; }
+    /* 日志图标背景 */
+    body.eye-care-mode .log-icon.posture { background: var(--eye-glow-soft) !important; }
+    body.eye-care-mode .log-icon.distance { background: rgba(196,144,58,0.08) !important; }
+    body.eye-care-mode .log-icon.blink { background: rgba(139,110,176,0.08) !important; }
+    body.eye-care-mode .log-icon.rest { background: rgba(74,158,138,0.08) !important; }
+    /* 兼容提示条 */
+    body.eye-care-mode .compat-banner { background: rgba(196,144,58,0.08) !important; border-color: rgba(196,144,58,0.2) !important; color: var(--eye-warning) !important; }
+    /* Pro激活相关 */
+    body.eye-care-mode .pro-upgrade-sidebar:hover { background: var(--eye-glow-soft) !important; }
+    body.eye-care-mode .pro-activated .pro-upgrade-text { color: var(--eye-accent) !important; }
+    /* 状态徽章 */
+    body.eye-care-mode .status-badge { background: rgba(74,158,138,0.1) !important; color: var(--eye-success) !important; }
+    /* 通知条已覆盖，但底部标签栏文字色 */
+    body.eye-care-mode .bottom-tab-bar .tab-btn span { color: inherit !important; }
+    /* header内部元素 */
+    body.eye-care-mode .header-btn svg { color: var(--eye-muted) !important; }
+    body.eye-care-mode .header-btn:hover svg { color: var(--eye-bg2) !important; }
+    /* 场景模式信息栏 */
+    body.eye-care-mode .scene-mode-info-bar { color: var(--eye-muted) !important; }
+    body.eye-care-mode .scene-mode-info-bar strong { color: var(--eye-ink) !important; }
+
     /* 护眼模式切换按钮 */
     .eye-care-toggle {
       display: inline-flex;
