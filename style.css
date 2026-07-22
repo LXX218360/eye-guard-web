@@ -1591,6 +1591,81 @@
     body.eye-care-mode .stat-card.green::before { background: linear-gradient(180deg,var(--accent2),#8bc48b) !important; }
     body.eye-care-mode .stat-card.orange::before { background: linear-gradient(180deg,var(--warning),#e8c06a) !important; }
     body.eye-care-mode .stat-card.purple::before { background: linear-gradient(180deg,var(--purple),#b09ad0) !important; }
+    body.eye-care-mode .stat-card { color: var(--eye-ink) !important; }
+    body.eye-care-mode .stat-card .stat-label { color: var(--eye-muted) !important; }
+    body.eye-care-mode .stat-card .stat-unit { color: var(--eye-muted) !important; }
+    body.eye-care-mode .stat-card .stat-icon { color: var(--eye-accent) !important; }
+
+    /* ============ 设置页面组件护眼覆盖 ============ */
+    /* 设置卡片 */
+    body.eye-care-mode .settings-card { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; color: var(--eye-ink) !important; box-shadow: var(--eye-card-shadow) !important; }
+    body.eye-care-mode .settings-card:hover { border-color: var(--eye-accent) !important; }
+    body.eye-care-mode .settings-title { color: var(--eye-ink) !important; }
+    /* 滑块 */
+    body.eye-care-mode .form-slider {
+      background: var(--eye-rule) !important;
+    }
+    body.eye-care-mode .form-slider::-webkit-slider-runnable-track {
+      background: var(--eye-rule) !important;
+    }
+    body.eye-care-mode .form-slider::-webkit-slider-thumb {
+      background: var(--eye-gradient-primary) !important;
+      box-shadow: 0 2px 8px var(--eye-glow-primary), 0 0 0 3px var(--eye-glow-soft) !important;
+    }
+    body.eye-care-mode .form-slider::-webkit-slider-thumb:hover {
+      box-shadow: 0 3px 12px var(--eye-glow-primary), 0 0 0 5px var(--eye-glow-soft) !important;
+    }
+    body.eye-care-mode .form-slider::-moz-range-thumb {
+      background: var(--eye-gradient-primary) !important;
+      box-shadow: 0 2px 8px var(--eye-glow-primary), 0 0 0 3px var(--eye-glow-soft) !important;
+    }
+    body.eye-care-mode .form-slider::-moz-range-track {
+      background: var(--eye-rule) !important;
+    }
+    body.eye-care-mode .slider-value { color: var(--eye-accent) !important; }
+    /* 切换行 */
+    body.eye-care-mode .toggle-row { border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .toggle-label { color: var(--eye-ink) !important; }
+    body.eye-care-mode .toggle-desc { color: var(--eye-muted) !important; }
+    body.eye-care-mode .toggle-permission-status.granted { background: rgba(74,158,138,0.1) !important; }
+    body.eye-care-mode .toggle-permission-status.denied { background: rgba(200,90,72,0.1) !important; }
+    body.eye-care-mode .toggle-permission-status.pending { background: rgba(196,144,58,0.1) !important; }
+    /* 存储统计卡片 */
+    body.eye-care-mode .storage-info-item { background: var(--eye-bg3) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .storage-info-value { color: var(--eye-accent) !important; }
+    body.eye-care-mode .storage-info-label { color: var(--eye-muted) !important; }
+    body.eye-care-mode .storage-btn.primary { background: var(--eye-gradient-primary) !important; box-shadow: 0 4px 12px var(--eye-glow-primary) !important; }
+    body.eye-care-mode .storage-btn.default { background: var(--eye-bg3) !important; color: var(--eye-muted) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .storage-btn.danger { background: var(--eye-bg3) !important; color: var(--eye-danger) !important; border-color: rgba(200,90,72,0.3) !important; }
+    body.eye-care-mode .storage-btn.danger:hover { background: var(--eye-danger) !important; color: var(--eye-bg2) !important; }
+    body.eye-care-mode .path-display { background: var(--eye-bg3) !important; color: var(--eye-muted) !important; }
+    body.eye-care-mode .path-picker-btn { background: var(--eye-bg3) !important; border-color: var(--eye-rule) !important; color: var(--eye-muted) !important; }
+    body.eye-care-mode .path-picker-btn:hover { border-color: var(--eye-accent) !important; color: var(--eye-accent) !important; }
+    body.eye-care-mode .path-picker-btn.selected { border-color: var(--eye-accent2) !important; color: var(--eye-accent2) !important; }
+    body.eye-care-mode .settings-actions { border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .settings-btn.secondary { background: transparent !important; color: var(--eye-muted) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .settings-btn.secondary:hover { background: var(--eye-bg3) !important; }
+    /* 确认框 */
+    body.eye-care-mode .inline-confirm { background: var(--eye-bg3) !important; border-color: var(--eye-rule) !important; color: var(--eye-ink) !important; }
+    body.eye-care-mode .inline-confirm .ic-cancel { background: var(--eye-bg2) !important; color: var(--eye-muted) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .inline-confirm .ic-confirm { background: var(--eye-danger) !important; }
+    /* 校准面板 */
+    body.eye-care-mode .calibration-panel { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .calibration-panel::before { background: radial-gradient(circle, var(--eye-glow-soft) 0%, transparent 70%) !important; }
+    body.eye-care-mode .calibration-panel-title { color: var(--eye-ink) !important; }
+    /* 校准按钮 */
+    body.eye-care-mode .calibrate-btn { background: var(--eye-gradient-primary) !important; color: var(--eye-bg2) !important; border-color: transparent !important; box-shadow: 0 2px 10px var(--eye-glow-primary) !important; }
+    body.eye-care-mode .calibrate-btn:hover { box-shadow: 0 4px 16px var(--eye-glow-primary) !important; }
+    body.eye-care-mode .calibrate-btn.calibrated { background: var(--eye-success) !important; }
+    /* 场景模式面板 */
+    body.eye-care-mode .scene-mode-panel { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .scene-mode-panel-title { color: var(--eye-ink) !important; }
+    /* AI监控栏中的mini卡片 */
+    body.eye-care-mode .ai-monitor-bar .metric-box { background: var(--eye-bg3) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .ai-monitor-bar .metric-label { color: var(--eye-muted) !important; }
+    /* 概览页bottom cards */
+    body.eye-care-mode .stat-card { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .stat-card:hover { border-color: var(--eye-accent) !important; }
     /* metric-box 状态色保持原主题 */
     body.eye-care-mode .metric-value.good { color: var(--success) !important; }
     body.eye-care-mode .metric-value.warn { color: var(--warning) !important; }
