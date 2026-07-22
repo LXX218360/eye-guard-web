@@ -1439,7 +1439,7 @@
   }
 
     /* ============ 护眼模式 Eye Care Mode ============ */
-    /* 护眼模式变量定义在 :root 层，确保任何主题下都可用 */
+    /* 浅色护眼（从亮色主题切换）：暖米色基调 */
     :root {
       --eye-bg: #f0ede4;
       --eye-bg2: #f7f4ea;
@@ -1457,29 +1457,26 @@
       --eye-glass-border: rgba(200,190,170,0.40);
       --eye-gradient-primary: linear-gradient(135deg, #5a8f5a 0%, #8b7d3a 100%);
     }
+    /* 深色护眼（从深色主题切换）：深暖棕基调，保持暗色 */
+    body.eye-care-mode[data-eye-care-base="dark"] {
+      --eye-bg: #1a1814;
+      --eye-bg2: #24201c;
+      --eye-bg3: #2e2a24;
+      --eye-ink: #e8e4d8;
+      --eye-muted: #9a9488;
+      --eye-rule: #3a3530;
+      --eye-accent: #6aaf6a;
+      --eye-accent2: #b8a85a;
+      --eye-danger: #e07060;
+      --eye-warning: #d4a050;
+      --eye-success: #6aaf6a;
+      --eye-card-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.10);
+      --eye-glass-bg: rgba(36,32,28,0.85);
+      --eye-glass-border: rgba(80,72,64,0.40);
+      --eye-gradient-primary: linear-gradient(135deg, #6aaf6a 0%, #b8a85a 100%);
+    }
 
     body.eye-care-mode {
-      /* 直接覆盖核心变量，确保与系统深色偏好无关 */
-      --bg: #f0ede4 !important;
-      --bg2: #f7f4ea !important;
-      --bg3: #e8e4d8 !important;
-      --ink: #2d2924 !important;
-      --muted: #7a7568 !important;
-      --rule: #d8d3c4 !important;
-      --accent: #5a8f5a !important;
-      --accent2: #8b7d3a !important;
-      --accent-light: rgba(90,143,90,0.10) !important;
-      --accent2-light: rgba(139,125,58,0.10) !important;
-      --danger: #c45c4a !important;
-      --warning: #c4903a !important;
-      --success: #5a8f5a !important;
-      --purple: #7a6d3a !important;
-      --card-shadow: 0 2px 12px rgba(60,50,20,0.05), 0 1px 3px rgba(60,50,20,0.03) !important;
-      --card-shadow-hover: 0 8px 30px rgba(60,50,20,0.08), 0 2px 8px rgba(60,50,20,0.05) !important;
-      --glass-bg: rgba(247,244,234,0.85) !important;
-      --glass-border: rgba(200,190,170,0.40) !important;
-      --gradient-primary: linear-gradient(135deg, #5a8f5a 0%, #8b7d3a 100%) !important;
-      --warning-light: rgba(196,144,58,0.08) !important;
       background: var(--eye-bg) !important;
       color: var(--eye-ink) !important;
     }
@@ -1506,7 +1503,7 @@
     }
     body.eye-care-mode .sidebar .logo-icon {
       background: var(--eye-gradient-primary) !important;
-      box-shadow: 0 4px 16px rgba(90,143,90,0.25) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
     }
     body.eye-care-mode .sidebar .logo-text { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .logo-sub { color: var(--eye-muted) !important; }
@@ -1514,8 +1511,8 @@
     body.eye-care-mode .sidebar .nav-item:hover { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .nav-item.active {
       background: var(--eye-gradient-primary) !important;
-      color: #fff !important;
-      box-shadow: 0 4px 16px rgba(90,143,90,0.25) !important;
+      color: var(--eye-ink) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
     }
     body.eye-care-mode .sidebar .eye-mode-label { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .eye-mode-toggle {
@@ -1533,7 +1530,7 @@
     }
     body.eye-care-mode .ai-monitor-bar {
       background: var(--eye-glass-bg) !important;
-      box-shadow: 0 4px 24px rgba(60,50,20,0.06) !important;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08) !important;
       border-color: var(--eye-glass-border) !important;
     }
     body.eye-care-mode .ink,
@@ -1567,7 +1564,7 @@
     body.eye-care-mode .timer-upgrade,
     body.eye-care-mode .lock-btn,
     body.eye-care-mode .auto-activate-btn {
-      background: linear-gradient(135deg, #6a9f6a, #9b8d4a) !important;
+      background: var(--eye-gradient-primary) !important;
     }
     body.eye-care-mode .danger-text,
     body.eye-care-mode .metric-danger { color: var(--eye-danger) !important; }
@@ -1576,12 +1573,12 @@
     body.eye-care-mode .success-text,
     body.eye-care-mode .metric-success { color: var(--eye-success) !important; }
     body.eye-care-mode .bottom-tab-bar {
-      background: rgba(247,244,234,0.85) !important;
+      background: var(--eye-glass-bg) !important;
       border-color: var(--eye-glass-border) !important;
     }
     body.eye-care-mode .dashboard-notice-bar {
-      background: linear-gradient(135deg, rgba(196,144,58,0.08) 0%, rgba(90,143,90,0.05) 100%) !important;
-      border-color: rgba(196,144,58,0.20) !important;
+      background: linear-gradient(135deg, var(--eye-bg3) 0%, var(--eye-bg2) 100%) !important;
+      border-color: var(--eye-rule) !important;
     }
     body.eye-care-mode .monitor-video {
       border-color: var(--eye-rule) !important;
@@ -1599,17 +1596,17 @@
     }
     body.eye-care-mode .eye-care-toggle.active {
       background: var(--eye-accent) !important;
-      color: #fff !important;
+      color: var(--eye-ink) !important;
     }
     body.eye-care-mode .compat-banner {
-      background: rgba(196,144,58,0.06) !important;
-      border-color: rgba(196,144,58,0.15) !important;
-      color: #8a6a2a !important;
+      background: var(--eye-bg3) !important;
+      border-color: var(--eye-rule) !important;
+      color: var(--eye-warning) !important;
     }
-    body.eye-care-mode .log-tag.warn { background: rgba(196,144,58,0.08) !important; color: #a07020 !important; }
-    body.eye-care-mode .log-tag.danger { background: rgba(196,92,74,0.08) !important; color: #a04030 !important; }
-    body.eye-care-mode .log-tag.info { background: rgba(90,143,90,0.08) !important; color: #3a6a3a !important; }
-    body.eye-care-mode .pro-locked-mask { background: rgba(247,244,234,0.7) !important; }
+    body.eye-care-mode .log-tag.warn { background: var(--eye-bg3) !important; color: var(--eye-warning) !important; }
+    body.eye-care-mode .log-tag.danger { background: var(--eye-bg3) !important; color: var(--eye-danger) !important; }
+    body.eye-care-mode .log-tag.info { background: var(--eye-bg3) !important; color: var(--eye-success) !important; }
+    body.eye-care-mode .pro-locked-mask { background: var(--eye-glass-bg) !important; }
     body.eye-care-mode .pro-timer-badge { background: rgba(45,41,36,0.92) !important; }
 
     /* 护眼模式切换按钮 */
