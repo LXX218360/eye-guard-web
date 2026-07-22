@@ -6652,8 +6652,6 @@ function isPro() {
           mediapipeLastVideoTime = -1;
           window._lastVideoCurrentTime = 0;
           window._lastActiveVideoTime = 0;
-          const oneMinAgo = Date.now() - 60000;
-          blinkHistory = blinkHistory.filter(function(t) { return t > oneMinAgo; });
           window._monitorResuming = true;
 
           // 移动端：检查视频流是否还活着，可能需要重新获取
@@ -6714,17 +6712,12 @@ function isPro() {
                 });
                 console.log('[通知] 桌面通知已发送');
               } catch(e) { console.warn('[通知] 发送失败:', e); }
-            } else if (Notification.permission === 'default') {
-              console.warn('[通知] 权限未授权，无法发送桌面通知');
-            } else {
-              console.warn('[通知] 权限被拒绝，请在浏览器设置中允许通知');
             }
           }
-          // 后台运行时使用 setInterval 保证循环不被节流
+          // 后台时继续运行计时（保持监测不中断）
           if (!window._bgMonitorInterval) {
             window._bgMonitorInterval = setInterval(function() {
               if (!document.hidden) { clearInterval(window._bgMonitorInterval); window._bgMonitorInterval = null; return; }
-              // 后台时继续处理数据（视频可能冻结，用时间推算）
               if (appState.monitorActive && monitorSessionStart) {
                 const elapsed = Math.floor((Date.now() - monitorSessionStart) / 1000);
                 const min = Math.floor(elapsed / 60);
@@ -7056,8 +7049,13 @@ function isPro() {
               blinkHistory.push(Date.now());
             }
 
-            const oneMinAgo = Date.now() - 60000;
-            blinkHistory = blinkHistory.filter(function(t) { return t > oneMinAgo; });
+            // 每5秒清理一次过期的眨眼记录，避免每帧都创建新数组导致GC压力
+            var nowBlink = Date.now();
+            if (!window._lastBlinkCleanup || nowBlink - window._lastBlinkCleanup > 5000) {
+              window._lastBlinkCleanup = nowBlink;
+              const oneMinAgo = nowBlink - 60000;
+              blinkHistory = blinkHistory.filter(function(t) { return t > oneMinAgo; });
+            }
             // 用实际经过时间计算频率，而不是固定60秒
             let blinkRate = 0;
             if (blinkHistory.length >= 2) {
@@ -7420,8 +7418,13 @@ function isPro() {
           lastFrameBrightness = avgBrightness;
           if (blinkDetected) { lastBlinkTime = Date.now(); blinkHistory.push(Date.now()); }
 
-          const oneMinAgo = Date.now() - 60000;
-          blinkHistory = blinkHistory.filter(function(t) { return t > oneMinAgo; });
+          // 每5秒清理一次过期的眨眼记录（备用检测路径）
+          var nowBlink2 = Date.now();
+          if (!window._lastBlinkCleanup || nowBlink2 - window._lastBlinkCleanup > 5000) {
+            window._lastBlinkCleanup = nowBlink2;
+            const oneMinAgo = nowBlink2 - 60000;
+            blinkHistory = blinkHistory.filter(function(t) { return t > oneMinAgo; });
+          }
           // 用实际经过时间计算频率，而不是固定60秒
           let blinkRate = 0;
           if (blinkHistory.length >= 2) {
@@ -7657,6 +7660,7 @@ function isPro() {
     window._monitorFrameCount = 0;
     window._lastVideoCurrentTime = undefined;
     window._lastActiveVideoTime = undefined;
+    window._lastBlinkCleanup = undefined;
     window._faceLostFrames = 0;
     window._smoothDistCm = undefined;
     window._smoothPosture = undefined;
