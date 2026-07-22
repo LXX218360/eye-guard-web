@@ -1496,7 +1496,14 @@
     body.eye-care-mode .metric-box,
     body.eye-care-mode .settings-section,
     body.eye-care-mode .device-status-panel,
-    body.eye-care-mode .scene-mode-panel {
+    body.eye-care-mode .scene-mode-panel,
+    body.eye-care-mode .monitor-main,
+    body.eye-care-mode .log-list,
+    body.eye-care-mode .monitor-sidebar,
+    body.eye-care-mode .monitor-body-right,
+    body.eye-care-mode .calibration-panel,
+    body.eye-care-mode .settings-card,
+    body.eye-care-mode .settings-device-list {
       background: var(--eye-bg2) !important;
       border-color: var(--eye-rule) !important;
       box-shadow: var(--eye-card-shadow) !important;
@@ -1967,6 +1974,24 @@
     /* 场景模式信息栏 */
     body.eye-care-mode .scene-mode-info-bar { color: var(--eye-muted) !important; }
     body.eye-care-mode .scene-mode-info-bar strong { color: var(--eye-ink) !important; }
+    /* 场景模式信息栏背景 */
+    body.eye-care-mode .scene-mode-panel .scene-mode-info-bar,
+    body.eye-care-mode .scene-mode-info-bar {
+      background: var(--eye-bg3) !important;
+      border-radius: var(--radius-sm) !important;
+      padding: 10px 14px !important;
+    }
+    /* 日志条目 */
+    body.eye-care-mode .log-item { border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .log-item:hover { background: linear-gradient(90deg, var(--eye-glow-soft) 0%, rgba(0,0,0,0.01) 100%) !important; }
+    body.eye-care-mode .log-item-text { color: var(--eye-ink) !important; }
+    body.eye-care-mode .log-item-sub { color: var(--eye-muted) !important; }
+    /* 监测状态卡片内部 */
+    body.eye-care-mode .monitor-status-bar { background: var(--eye-bg3) !important; }
+    /* 设备选择面板容器 */
+    body.eye-care-mode .monitor-sidebar > div { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; }
+    /* 监测视频占位区文字 */
+    body.eye-care-mode .monitor-placeholder { color: var(--eye-muted) !important; }
 
     /* 护眼模式切换按钮 */
     .eye-care-toggle {
