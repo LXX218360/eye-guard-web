@@ -1634,6 +1634,83 @@
     body.eye-care-mode .pro-locked-mask { background: var(--eye-glass-bg) !important; }
     body.eye-care-mode .pro-timer-badge { background: var(--eye-bg3) !important; color: var(--eye-ink) !important; border-color: var(--eye-rule) !important; }
 
+    /* ============ 深色护眼额外全局美化 ============ */
+    /* 场景模式按钮 */
+    body.eye-care-mode .scene-mode-btn { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; color: var(--eye-ink) !important; }
+    body.eye-care-mode .scene-mode-btn:hover { background: var(--eye-bg3) !important; }
+    body.eye-care-mode .scene-mode-btn.active { border-color: var(--eye-accent) !important; background: var(--eye-bg3) !important; }
+    body.eye-care-mode .scene-mode-btn.active::after { background: linear-gradient(90deg, var(--eye-accent), var(--eye-accent2)) !important; }
+    body.eye-care-mode .scene-mode-btn .sm-desc { color: var(--eye-muted) !important; }
+
+    /* 开关按钮 */
+    body.eye-care-mode .toggle-switch { background: var(--eye-rule) !important; }
+    body.eye-care-mode .toggle-switch.active { background: var(--eye-accent) !important; }
+    body.eye-care-mode .toggle-switch::after { background: var(--eye-bg2) !important; box-shadow: 0 1px 4px var(--eye-glow-soft) !important; }
+
+    /* 校准卡片 */
+    body.eye-care-mode .calibration-item { background: var(--eye-bg3) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .calibration-item::before { background: var(--eye-muted) !important; }
+    body.eye-care-mode .calibration-item[data-cal-status="done"]::before { background: var(--success) !important; }
+    body.eye-care-mode .calibration-item[data-cal-status="active"]::before { background: var(--eye-accent) !important; }
+    body.eye-care-mode .calibration-item-label { color: var(--eye-muted) !important; }
+    body.eye-care-mode .calibration-item-value { color: var(--eye-accent) !important; }
+    body.eye-care-mode .calibration-item-status.done { color: var(--success) !important; }
+
+    /* 次级按钮 */
+    body.eye-care-mode .settings-btn.secondary { background: var(--eye-bg3) !important; color: var(--eye-ink) !important; border-color: var(--eye-rule) !important; }
+    body.eye-care-mode .settings-btn.secondary:hover { background: var(--eye-rule) !important; }
+
+    /* Tab 指示条 */
+    body.eye-care-mode .tab-item { color: var(--eye-muted) !important; border-color: transparent !important; }
+    body.eye-care-mode .tab-item.active { color: var(--eye-accent) !important; border-bottom-color: var(--eye-accent) !important; }
+    body.eye-care-mode .tab-item:hover { color: var(--eye-ink) !important; }
+
+    /* 表格 */
+    body.eye-care-mode table,
+    body.eye-care-mode th,
+    body.eye-care-mode td { border-color: var(--eye-rule) !important; background: transparent !important; }
+    body.eye-care-mode th { color: var(--eye-ink) !important; }
+    body.eye-care-mode td { color: var(--eye-muted) !important; }
+
+    /* 链接 */
+    body.eye-care-mode a { color: var(--eye-accent) !important; }
+    body.eye-care-mode a:hover { color: var(--eye-accent2) !important; }
+
+    /* 禁用/placeholder */
+    body.eye-care-mode .form-input::placeholder { color: var(--eye-muted) !important; opacity: 0.6; }
+
+    /* 分割线 / hr */
+    body.eye-care-mode hr,
+    body.eye-care-mode .divider { border-color: var(--eye-rule) !important; }
+
+    /* 滚动条美化 */
+    body.eye-care-mode ::-webkit-scrollbar { width: 6px; height: 6px; }
+    body.eye-care-mode ::-webkit-scrollbar-track { background: var(--eye-bg) !important; }
+    body.eye-care-mode ::-webkit-scrollbar-thumb { background: var(--eye-rule) !important; border-radius: 3px; }
+    body.eye-care-mode ::-webkit-scrollbar-thumb:hover { background: var(--eye-muted) !important; }
+
+    /* 工具提示/tooltip */
+    body.eye-care-mode .tooltip,
+    body.eye-care-mode [data-tooltip]::after { background: var(--eye-bg3) !important; color: var(--eye-ink) !important; border: 1px solid var(--eye-rule) !important; }
+
+    /* 通知条 */
+    body.eye-care-mode .toast { background: var(--eye-bg2) !important; color: var(--eye-ink) !important; border: 1px solid var(--eye-rule) !important; box-shadow: var(--eye-card-shadow) !important; }
+
+    /* 告警条脉冲动画颜色 */
+    body.eye-care-mode .dashboard-notice-bar .notice-icon { color: var(--eye-accent) !important; }
+
+    /* 设备状态面板在线指示灯 */
+    body.eye-care-mode .status-dot.online { background: var(--success) !important; box-shadow: 0 0 8px rgba(52,211,153,0.40) !important; }
+    body.eye-care-mode .status-dot.offline { background: var(--eye-muted) !important; }
+
+    /* 底部标签栏图标/文字 */
+    body.eye-care-mode .bottom-tab-bar .tab-btn { color: var(--eye-muted) !important; }
+    body.eye-care-mode .bottom-tab-bar .tab-btn.active { color: var(--eye-accent) !important; }
+
+    /* 模态弹窗 */
+    body.eye-care-mode .modal-overlay { background: rgba(0,0,0,0.5) !important; }
+    body.eye-care-mode .modal-content { background: var(--eye-bg2) !important; border-color: var(--eye-rule) !important; color: var(--eye-ink) !important; box-shadow: var(--eye-card-shadow) !important; }
+
     /* 护眼模式切换按钮 */
     .eye-care-toggle {
       display: inline-flex;
