@@ -283,16 +283,20 @@
       toggle.classList.remove('active');
       if (sidebarToggle) sidebarToggle.classList.remove('active');
       document.body.classList.remove('eye-care-mode');
+      delete document.body.dataset.eyeCareBase;
       localStorage.setItem('eyeGuardEyeCare', 'false');
       // 恢复之前的主题
       restoreTheme();
     } else {
       toggle.classList.add('active');
       if (sidebarToggle) sidebarToggle.classList.add('active');
-      document.body.classList.remove('dark-mode');
-      document.body.classList.remove('light-mode');
       document.body.classList.add('eye-care-mode');
+      // 根据当前主题选择护眼基调：深色→深色护眼，亮色→浅色护眼
+      var isDark = document.body.classList.contains('dark-mode') ||
+        (!document.body.classList.contains('light-mode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.body.dataset.eyeCareBase = isDark ? 'dark' : 'light';
       localStorage.setItem('eyeGuardEyeCare', 'true');
+      localStorage.setItem('eyeCareBaseTheme', isDark ? 'dark' : 'light');
     }
   }
   (function setupEyeCare() {
@@ -8942,17 +8946,10 @@ function isPro() {
 
   // ===================== 主题切换 =====================
   function toggleTheme() {
-    // 切换主题时自动关闭护眼模式
-    var eyeCareToggle = document.getElementById('eye-care-toggle');
-    var sidebarEyeToggle = document.getElementById('eye-mode-toggle');
-    if (eyeCareToggle && eyeCareToggle.classList.contains('active')) {
-      eyeCareToggle.classList.remove('active');
-      if (sidebarEyeToggle) sidebarEyeToggle.classList.remove('active');
-      document.body.classList.remove('eye-care-mode');
-      localStorage.setItem('eyeGuardEyeCare', 'false');
-    }
     var toggle = document.getElementById('setting-theme-toggle');
     var isDark = toggle.classList.contains('active');
+    var eyeCareToggle = document.getElementById('eye-care-toggle');
+    var isEyeCare = eyeCareToggle && eyeCareToggle.classList.contains('active');
     if (isDark) {
       // 切换到亮色模式
       toggle.classList.remove('active');
@@ -8968,18 +8965,23 @@ function isPro() {
       appState.theme = 'dark';
       document.getElementById('theme-status-text').textContent = '深色模式';
     }
+    // 如果当前是护眼模式，同步更新护眼基调
+    if (isEyeCare) {
+      document.body.dataset.eyeCareBase = isDark ? 'light' : 'dark';
+      localStorage.setItem('eyeCareBaseTheme', isDark ? 'light' : 'dark');
+    }
     localStorage.setItem('eyeGuardTheme', appState.theme);
     try { dbPut('settings', { key: 'theme', value: appState.theme }); } catch(e) {}
   }
 
   function restoreTheme() {
     var savedTheme = localStorage.getItem('eyeGuardTheme');
-    // 如果护眼模式开启，优先保持护眼模式，不恢复主题
+    // 如果护眼模式开启，优先保持护眼模式，恢复对应的护眼基调
     var eyeCare = localStorage.getItem('eyeGuardEyeCare');
     if (eyeCare === 'true') {
-      document.body.classList.remove('dark-mode');
-      document.body.classList.remove('light-mode');
       document.body.classList.add('eye-care-mode');
+      var baseTheme = localStorage.getItem('eyeCareBaseTheme') || 'light';
+      document.body.dataset.eyeCareBase = baseTheme;
       var eyeToggle = document.getElementById('eye-care-toggle');
       var sidebarToggle = document.getElementById('eye-mode-toggle');
       if (eyeToggle) eyeToggle.classList.add('active');
