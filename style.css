@@ -1439,41 +1439,45 @@
   }
 
     /* ============ 护眼模式 Eye Care Mode ============ */
-    /* 浅色护眼（从亮色主题切换）：暖米色基调 */
+    /* 浅色护眼（从亮色主题切换）：暖纸白基调，干净温润 */
     :root {
-      --eye-bg: #f0ede4;
-      --eye-bg2: #f7f4ea;
-      --eye-bg3: #e8e4d8;
-      --eye-ink: #2d2924;
-      --eye-muted: #7a7568;
-      --eye-rule: #d8d3c4;
-      --eye-accent: #5a8f5a;
-      --eye-accent2: #8b7d3a;
-      --eye-danger: #c45c4a;
+      --eye-bg: #f7f2ea;
+      --eye-bg2: #fffdf8;
+      --eye-bg3: #efe8d8;
+      --eye-ink: #3d3428;
+      --eye-muted: #8a7e6e;
+      --eye-rule: #e5ddd0;
+      --eye-accent: #4a9e8a;
+      --eye-accent2: #7ab8a0;
+      --eye-danger: #c85a48;
       --eye-warning: #c4903a;
-      --eye-success: #5a8f5a;
-      --eye-card-shadow: 0 2px 12px rgba(60,50,20,0.05), 0 1px 3px rgba(60,50,20,0.03);
-      --eye-glass-bg: rgba(247,244,234,0.85);
-      --eye-glass-border: rgba(200,190,170,0.40);
-      --eye-gradient-primary: linear-gradient(135deg, #5a8f5a 0%, #8b7d3a 100%);
+      --eye-success: #4a9e8a;
+      --eye-card-shadow: 0 2px 12px rgba(80,60,30,0.06), 0 1px 3px rgba(80,60,30,0.04);
+      --eye-glass-bg: rgba(255,253,248,0.88);
+      --eye-glass-border: rgba(180,170,150,0.35);
+      --eye-glow-primary: rgba(74,158,138,0.25);
+      --eye-glow-soft: rgba(74,158,138,0.12);
+      --eye-gradient-primary: linear-gradient(135deg, #4a9e8a 0%, #7ab8a0 100%);
     }
-    /* 深色护眼（从深色主题切换）：深蓝绿暖调，医学护眼风格 */
+    /* 深色护眼（从深色主题切换）：深森林绿基调，暗色护眼 */
     body.eye-care-mode[data-eye-care-base="dark"] {
-      --eye-bg: #111a1e;
-      --eye-bg2: #172428;
-      --eye-bg3: #1e2e33;
-      --eye-ink: #d8e8e0;
-      --eye-muted: #7a9a8e;
-      --eye-rule: #2a3e42;
-      --eye-accent: #4ec6a0;
-      --eye-accent2: #88c8a8;
-      --eye-danger: #e88070;
+      --eye-bg: #141c1a;
+      --eye-bg2: #1d2825;
+      --eye-bg3: #25332e;
+      --eye-ink: #d8e5de;
+      --eye-muted: #7a8e84;
+      --eye-rule: #2a3834;
+      --eye-accent: #5ec9a0;
+      --eye-accent2: #8ad0b0;
+      --eye-danger: #e08070;
       --eye-warning: #d4b050;
-      --eye-success: #4ec6a0;
-      --eye-card-shadow: 0 2px 16px rgba(0,20,20,0.25), 0 1px 4px rgba(0,20,20,0.15);
-      --eye-glass-bg: rgba(23,36,40,0.88);
-      --eye-glass-border: rgba(78,198,160,0.12);
-      --eye-gradient-primary: linear-gradient(135deg, #3a9e8a 0%, #68b8a0 100%);
+      --eye-success: #5ec9a0;
+      --eye-card-shadow: 0 2px 16px rgba(0,15,10,0.30), 0 1px 4px rgba(0,15,10,0.20);
+      --eye-glass-bg: rgba(29,40,37,0.90);
+      --eye-glass-border: rgba(94,201,160,0.15);
+      --eye-glow-primary: rgba(94,201,160,0.30);
+      --eye-glow-soft: rgba(94,201,160,0.15);
+      --eye-gradient-primary: linear-gradient(135deg, #3a9e82 0%, #5ec9a0 100%);
     }
 
     body.eye-care-mode {
@@ -1503,16 +1507,19 @@
     }
     body.eye-care-mode .sidebar .logo-icon {
       background: var(--eye-gradient-primary) !important;
-      box-shadow: 0 4px 20px rgba(58,158,138,0.30) !important;
+      box-shadow: 0 4px 20px var(--eye-glow-primary) !important;
     }
     body.eye-care-mode .sidebar .logo-text { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .logo-sub { color: var(--eye-muted) !important; }
     body.eye-care-mode .sidebar .nav-item { color: var(--eye-muted) !important; }
-    body.eye-care-mode .sidebar .nav-item:hover { color: var(--eye-ink) !important; }
+    body.eye-care-mode .sidebar .nav-item:hover {
+      color: var(--eye-ink) !important;
+      background: var(--eye-bg3) !important;
+    }
     body.eye-care-mode .sidebar .nav-item.active {
       background: var(--eye-gradient-primary) !important;
-      color: var(--eye-ink) !important;
-      box-shadow: 0 4px 20px rgba(58,158,138,0.25) !important;
+      color: var(--eye-bg2) !important;
+      box-shadow: 0 4px 20px var(--eye-glow-primary) !important;
     }
     body.eye-care-mode .sidebar .eye-mode-label { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .eye-mode-toggle {
@@ -1530,7 +1537,7 @@
     }
     body.eye-care-mode .ai-monitor-bar {
       background: var(--eye-glass-bg) !important;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08) !important;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06) !important;
       border-color: var(--eye-glass-border) !important;
     }
     body.eye-care-mode .ink,
@@ -1554,7 +1561,7 @@
       color: var(--eye-accent) !important;
     }
     body.eye-care-mode .nav-item.active {
-      background: rgba(90,143,90,0.10) !important;
+      color: var(--eye-bg2) !important;
     }
     body.eye-care-mode .btn-primary,
     body.eye-care-mode .settings-btn.primary {
@@ -1592,11 +1599,11 @@
     body.eye-care-mode .form-input:focus,
     body.eye-care-mode .form-select:focus {
       border-color: var(--eye-accent) !important;
-      box-shadow: 0 0 0 3px rgba(90,143,90,0.15) !important;
+      box-shadow: 0 0 0 3px var(--eye-glow-soft) !important;
     }
     body.eye-care-mode .eye-care-toggle.active {
       background: var(--eye-accent) !important;
-      color: var(--eye-ink) !important;
+      color: var(--eye-bg2) !important;
     }
     body.eye-care-mode .compat-banner {
       background: var(--eye-bg3) !important;
@@ -1607,7 +1614,7 @@
     body.eye-care-mode .log-tag.danger { background: var(--eye-bg3) !important; color: var(--eye-danger) !important; }
     body.eye-care-mode .log-tag.info { background: var(--eye-bg3) !important; color: var(--eye-success) !important; }
     body.eye-care-mode .pro-locked-mask { background: var(--eye-glass-bg) !important; }
-    body.eye-care-mode .pro-timer-badge { background: rgba(45,41,36,0.92) !important; }
+    body.eye-care-mode .pro-timer-badge { background: var(--eye-bg3) !important; color: var(--eye-ink) !important; border-color: var(--eye-rule) !important; }
 
     /* 护眼模式切换按钮 */
     .eye-care-toggle {
