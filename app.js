@@ -1124,13 +1124,20 @@
           appState.permissions.usb = 'granted';
           toggle.classList.add('active');
         } else if (perm === 'notification') {
-          // 通知权限开关：控制是否"自动请求"通知权限
-          if (appState.permissions.autoRequestNotification) {
-            // 用户关闭自动请求通知权限
-            appState.permissions.autoRequestNotification = false;
-            toggle.classList.remove('active');
-          } else {
-            // 用户开启自动请求通知权限，立即尝试请求一次
+          // 通知权限开关：点击时请求通知权限
+          var currentPerm = (typeof Notification !== 'undefined') ? Notification.permission : 'denied';
+          if (currentPerm === 'granted') {
+            // 已授权，点击关闭仅关闭自动请求标志（不影响已授权的权限）
+            appState.permissions.autoRequestNotification = !appState.permissions.autoRequestNotification;
+            if (appState.permissions.autoRequestNotification) {
+              toggle.classList.add('active');
+            } else {
+              toggle.classList.remove('active');
+              errEl.textContent = '已关闭通知（可在浏览器设置中重新开启）';
+              errEl.classList.add('show');
+            }
+          } else if (currentPerm === 'default') {
+            // 未授权，立即请求
             appState.permissions.autoRequestNotification = true;
             var notifResult2;
             if ((typeof Notification !== 'undefined') && typeof Notification.requestPermission === 'function') {
@@ -1142,8 +1149,22 @@
               }
             }
             appState.permissions.notification = notifResult2 || 'default';
-            if (notifResult2 === 'granted') toggle.classList.add('active');
-            else { toggle.classList.remove('active'); errEl.textContent = '通知权限被拒绝'; errEl.classList.add('show'); }
+            if (notifResult2 === 'granted') {
+              toggle.classList.add('active');
+              errEl.textContent = '桌面通知已开启！离开页面时会收到提醒';
+              errEl.classList.add('show');
+              // 发一条测试通知
+              try { new Notification('眼部卫士', { body: '通知已开启，离开页面时将提醒您', icon: '', tag: 'test' }); } catch(e) {}
+            } else {
+              toggle.classList.remove('active');
+              errEl.textContent = '通知权限被拒绝，请在浏览器地址栏左侧重新允许';
+              errEl.classList.add('show');
+            }
+          } else {
+            // denied
+            errEl.textContent = '通知权限已被浏览器拒绝，请在浏览器设置中重新允许通知';
+            errEl.classList.add('show');
+            toggle.classList.remove('active');
           }
         }
         await dbPut('settings', { key:'permissions', data: appState.permissions });
@@ -1165,8 +1186,9 @@
       const toggle = document.getElementById('perm-toggle-' + perm);
       if (!toggle) return;
       if (perm === 'notification') {
-        // 通知权限开关：表示是否允许自动请求通知权限
-        toggle.classList.toggle('active', appState.permissions.autoRequestNotification === true);
+        // 通知权限开关：基于实际的 Notification.permission 状态
+        var actualPerm = (typeof Notification !== 'undefined') ? Notification.permission : 'denied';
+        toggle.classList.toggle('active', actualPerm === 'granted' && appState.permissions.autoRequestNotification !== false);
       } else if (perm !== 'autoRequestNotification') {
         toggle.classList.toggle('active', appState.permissions[perm] === 'granted');
       }
@@ -6398,10 +6420,21 @@ function isPro() {
         '立即授权',
         false,
         function() {
-          // 用户点击"立即授权"后，依次请求摄像头和通知权限（合并在引导弹窗内完成）
-          var camPromise = Promise.resolve();
-          if (needCam) {
-            camPromise = (async function() {
+          // 用户点击"立即授权"后，依次请求权限（先通知后摄像头，避免并行请求被吞）
+          (async function() {
+            // 1. 先请求通知权限（轻量级，不阻塞摄像头）
+            if (needNotif) {
+              try {
+                console.log('[权限引导] 正在请求通知权限...');
+                if (typeof Notification !== 'undefined' && Notification.requestPermission) {
+                  var permResult = await Notification.requestPermission();
+                  appState.permissions.notification = permResult;
+                  console.log('[权限引导] 通知权限结果:', permResult);
+                }
+              } catch(e) { console.warn('[权限引导] 通知权限请求异常:', e); }
+            }
+            // 2. 再请求摄像头权限
+            if (needCam) {
               try {
                 console.log('[权限引导] 正在请求摄像头权限...');
                 var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -6420,23 +6453,9 @@ function isPro() {
                   await dbPut('settings', { key:'permissions', data: appState.permissions });
                 }
               }
-            })();
-          }
-          var notifPromise = Promise.resolve();
-          if (needNotif && appState.permissions.autoRequestNotification !== false) {
-            notifPromise = (async function() {
-              try {
-                console.log('[权限引导] 正在请求通知权限...');
-                if (typeof Notification !== 'undefined' && Notification.requestPermission) {
-                  await Notification.requestPermission();
-                }
-              } catch(e) { console.warn('[权限引导] 通知权限请求异常:', e); }
-            })();
-          }
-          // 等待所有权限请求完成后继续
-          Promise.all([camPromise, notifPromise]).then(function() {
+            }
             resolve();
-          });
+          })();
         }
       );
       // 替换 modal-desc 内容为 HTML
@@ -6754,30 +6773,27 @@ function isPro() {
       runMonitorLoop(video);
       startFreeTimer();
       showAlert('监测已开启', 'info', '&#x1F441;');
-      // 电脑版：在页面可见时主动请求桌面通知权限，避免切后台时无法弹窗授权
+      // 电脑版：检查桌面通知权限状态，引导用户开启
       if (!IS_MOBILE && 'Notification' in window) {
         if (Notification.permission === 'default') {
-          // 用 modal 引导用户授权通知
-          showModal('开启桌面通知', '为了在您离开页面时能收到提醒，请允许桌面通知权限。\n\n点击"确认"后，浏览器会弹出通知授权请求，请选择"允许"。', '允许通知', false, function() {
+          // 权限未请求，弹 Modal 引导用户授权
+          showModal('开启桌面通知', '为了在您离开页面时能收到提醒通知，请允许桌面通知权限。\n\n点击"允许通知"后，浏览器会弹出授权请求，请选择"允许"。', '允许通知', false, function() {
             Notification.requestPermission().then(function(perm) {
               console.log('[通知] 权限请求结果:', perm);
               if (perm === 'granted') {
-                // 立即发一条测试通知
-                try {
-                  new Notification('眼部卫士', { body: '桌面通知已开启，离开页面时将提醒您保持坐姿', icon: '', tag: 'eye-guard-test' });
-                } catch(e) {}
+                try { new Notification('眼部卫士', { body: '桌面通知已开启，离开页面时将提醒您保持坐姿', icon: '', tag: 'eye-guard-test' }); } catch(e) {}
                 showAlert('桌面通知已开启', 'info', '&#x1F514;');
+                refreshPermissionToggles();
               } else {
                 showAlert('未开启通知权限，离开页面时将无法收到桌面提醒', 'warn', '&#x26A0;');
               }
             });
           });
-        } else if (Notification.permission === 'granted') {
-          console.log('[通知] 权限已授权');
-        } else {
-          console.log('[通知] 权限被拒绝');
-          showAlert('桌面通知权限被拒绝，建议在浏览器设置中允许通知以接收后台提醒', 'warn', '&#x26A0;');
+        } else if (Notification.permission === 'denied') {
+          // 权限被拒绝，提示用户去浏览器设置重新允许
+          showAlert('桌面通知被拒绝，请在浏览器地址栏左侧点击锁图标，允许通知以接收后台提醒', 'warn', '&#x26A0;');
         }
+        // 如果已授权(granted)，不弹任何提示
       }
       // 更新日志列表
       const logList = document.getElementById('monitor-log-list');
