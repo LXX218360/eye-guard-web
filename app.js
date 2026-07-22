@@ -1315,8 +1315,12 @@
     const v = parseInt(document.getElementById('slider-posture-warn').value);
     const badEl = document.getElementById('slider-posture');
     document.getElementById('slider-posture-warn-val').textContent = v + '°';
-    // 不能低于 bad
+    // 不能低于 bad：夹紧到 bad 阈值
     if (badEl && v < parseInt(badEl.value)) {
+      const clamped = parseInt(badEl.value);
+      document.getElementById('slider-posture-warn').value = clamped;
+      document.getElementById('slider-posture-warn-val').textContent = clamped + '°';
+      appState.thresholds.postureWarn = clamped;
       return;
     }
     appState.thresholds.postureWarn = v;
@@ -6665,6 +6669,22 @@ function isPro() {
             }
           }
 
+          // 显示后台期间积累的通知（弹窗在hidden时不会渲染）
+          if (window._pendingBackgroundAlerts && window._pendingBackgroundAlerts.length > 0) {
+            window._pendingBackgroundAlerts.forEach(function(alertInfo) {
+              showAlert(alertInfo.msg, alertInfo.type, alertInfo.icon);
+            });
+            window._pendingBackgroundAlerts = [];
+          }
+          // 发送桌面通知提醒用户（如果已授权）
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('眼部卫士', {
+              body: '监测已恢复，请注意保持正确坐姿',
+              icon: '',
+              tag: 'eye-guard-resume'
+            });
+          }
+
           updateMonitorStatus('face', 'warn', '画面分析: 恢复中 (等待视频帧...)');
           var resumeCheck = setInterval(function() {
             var v = document.getElementById('monitor-video');
@@ -6678,10 +6698,34 @@ function isPro() {
         // ========== 页面切到后台 ==========
         if (document.hidden && appState.monitorActive) {
           window._backgroundTime = Date.now();
-          // 电脑版弹窗提醒：切换应用时提醒用户保持正确姿势
+          // 电脑版提醒：切换应用时提醒用户保持正确姿势
+          // 注意：页面hidden时DOM弹窗不会渲染，改用桌面通知或记录待显示
           if (!IS_MOBILE) {
-            showAlert('您已切换到其他应用，监测仍在后台运行。\n请注意保持正确的坐姿！', 'warn', '&#x1F6E1;');
+            var alertMsg = '您已切换到其他应用，监测仍在后台运行。请注意保持正确的坐姿！';
+            // 记录待显示弹窗，等页面恢复时显示
+            if (!window._pendingBackgroundAlerts) window._pendingBackgroundAlerts = [];
+            window._pendingBackgroundAlerts.push({ msg: alertMsg, type: 'warn', icon: '&#x1F6E1;' });
             addMonitorLog('warn', '用户切换到其他应用，监测在后台继续运行');
+            // 尝试桌面通知
+            if ('Notification' in window) {
+              if (Notification.permission === 'granted') {
+                new Notification('眼部卫士', {
+                  body: alertMsg,
+                  icon: '',
+                  tag: 'eye-guard-background'
+                });
+              } else if (Notification.permission === 'default') {
+                Notification.requestPermission().then(function(perm) {
+                  if (perm === 'granted') {
+                    new Notification('眼部卫士', {
+                      body: alertMsg,
+                      icon: '',
+                      tag: 'eye-guard-background'
+                    });
+                  }
+                });
+              }
+            }
           }
           // 后台运行时使用 setInterval 保证循环不被节流
           if (!window._bgMonitorInterval) {
