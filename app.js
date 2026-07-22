@@ -6669,26 +6669,6 @@ function isPro() {
             }
           }
 
-          // 显示后台期间积累的通知（弹窗在hidden时不会渲染）
-          if (window._pendingBackgroundAlerts && window._pendingBackgroundAlerts.length > 0) {
-            window._pendingBackgroundAlerts.forEach(function(alertInfo) {
-              showAlert(alertInfo.msg, alertInfo.type, alertInfo.icon);
-            });
-            // 额外用 modal 弹窗确保用户看到（比 toast 更醒目）
-            showModal('后台监测提醒', '您刚才切换到了其他应用，监测在后台继续运行。请保持正确的坐姿！', '我知道了', false);
-            window._pendingBackgroundAlerts = [];
-          }
-          // 发送桌面通知提醒用户（如果已授权）
-          if ('Notification' in window && Notification.permission === 'granted') {
-            try {
-              new Notification('眼部卫士', {
-                body: '监测已恢复，请注意保持正确坐姿',
-                icon: '',
-                tag: 'eye-guard-resume'
-              });
-            } catch(e) { console.warn('[通知] Notification发送失败:', e); }
-          }
-
           updateMonitorStatus('face', 'warn', '画面分析: 恢复中 (等待视频帧...)');
           var resumeCheck = setInterval(function() {
             var v = document.getElementById('monitor-video');
@@ -6702,39 +6682,6 @@ function isPro() {
         // ========== 页面切到后台 ==========
         if (document.hidden && appState.monitorActive) {
           window._backgroundTime = Date.now();
-          // 电脑版提醒：切换应用时提醒用户保持正确姿势
-          // 注意：页面hidden时DOM弹窗不会渲染，改用桌面通知或记录待显示
-          if (!IS_MOBILE) {
-            var alertMsg = '您已切换到其他应用，监测仍在后台运行。请注意保持正确的坐姿！';
-            // 记录待显示弹窗，等页面恢复时显示
-            if (!window._pendingBackgroundAlerts) window._pendingBackgroundAlerts = [];
-            window._pendingBackgroundAlerts.push({ msg: alertMsg, type: 'warn', icon: '&#x1F6E1;' });
-            addMonitorLog('warn', '用户切换到其他应用，监测在后台继续运行');
-            // 尝试桌面通知
-            if ('Notification' in window) {
-              if (Notification.permission === 'granted') {
-                try {
-                  new Notification('眼部卫士', {
-                    body: alertMsg,
-                    icon: '',
-                    tag: 'eye-guard-background'
-                  });
-                } catch(e) { console.warn('[通知] 后台Notification发送失败:', e); }
-              } else if (Notification.permission === 'default') {
-                Notification.requestPermission().then(function(perm) {
-                  if (perm === 'granted') {
-                    try {
-                      new Notification('眼部卫士', {
-                        body: alertMsg,
-                        icon: '',
-                        tag: 'eye-guard-background'
-                      });
-                    } catch(e) { console.warn('[通知] 后台Notification发送失败:', e); }
-                  }
-                });
-              }
-            }
-          }
           // 后台运行时使用 setInterval 保证循环不被节流
           if (!window._bgMonitorInterval) {
             window._bgMonitorInterval = setInterval(function() {
@@ -6751,6 +6698,39 @@ function isPro() {
         }
       };
       document.addEventListener('visibilitychange', window._visHandler);
+
+      // 额外：window.blur 事件在切出时比 visibilitychange 更早触发（此时页面还未 hidden）
+      // 用于在切出瞬间就显示 DOM 弹窗（visibilitychange 的 document.hidden 此时仍为 false）
+      window._blurHandler = function() {
+        if (!appState.monitorActive || IS_MOBILE) return;
+        // 立即显示 toast 弹窗（此时 DOM 还可渲染）
+        showAlert('您已切换到其他应用，监测在后台运行中，请保持正确坐姿！', 'warn', '&#x26A0;');
+        // 标题闪烁提醒
+        window._origTitle = document.title;
+        window._titleBlinkInterval = setInterval(function() {
+          document.title = document.title === '眼部卫士' ? '⚠ 请注意坐姿！' : '眼部卫士';
+        }, 1500);
+        addMonitorLog('warn', '用户切换到其他应用，监测在后台继续运行');
+        // 桌面通知
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification('眼部卫士', {
+              body: '您已切换到其他应用，监测仍在后台运行。请保持正确的坐姿！',
+              icon: '',
+              tag: 'eye-guard-background'
+            });
+          } catch(e) {}
+        }
+      };
+      window._focusHandler = function() {
+        // 恢复标题
+        if (window._titleBlinkInterval) { clearInterval(window._titleBlinkInterval); window._titleBlinkInterval = null; }
+        if (window._origTitle) { document.title = window._origTitle; window._origTitle = null; }
+        // 弹 modal 确保用户看到
+        showModal('后台监测提醒', '您刚才切换到了其他应用，监测在后台继续运行。请保持正确的坐姿！', '我知道了', false);
+      };
+      window.addEventListener('blur', window._blurHandler);
+      window.addEventListener('focus', window._focusHandler);
 
       runMonitorLoop(video);
       startFreeTimer();
@@ -7597,6 +7577,10 @@ function isPro() {
     // 彻底清理定时器和动画帧
     if (monitorAnimFrame) { clearTimeout(monitorAnimFrame); monitorAnimFrame = null; }
     if (window._visHandler) { document.removeEventListener('visibilitychange', window._visHandler); window._visHandler = null; }
+    if (window._blurHandler) { window.removeEventListener('blur', window._blurHandler); window._blurHandler = null; }
+    if (window._focusHandler) { window.removeEventListener('focus', window._focusHandler); window._focusHandler = null; }
+    if (window._titleBlinkInterval) { clearInterval(window._titleBlinkInterval); window._titleBlinkInterval = null; }
+    if (window._origTitle) { document.title = window._origTitle; window._origTitle = null; }
     // 清理摄像头流
     if (monitorStream) { try { monitorStream.getTracks().forEach(t => t.stop()); } catch(e) {} monitorStream = null; }
     monitorTooCloseStart = null;
