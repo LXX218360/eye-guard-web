@@ -6623,12 +6623,48 @@ function isPro() {
       // 页面可见性变化处理
       document.removeEventListener('visibilitychange', window._visHandler);
       window._visHandler = function() {
+        // ========== 页面恢复可见 ==========
         if (!document.hidden && appState.monitorActive) {
           // 页面恢复可见，重置时间基准
           mediapipeLastVideoTime = -1;
+          window._lastVideoCurrentTime = 0;
+          window._lastActiveVideoTime = 0;
           const oneMinAgo = Date.now() - 60000;
           blinkHistory = blinkHistory.filter(function(t) { return t > oneMinAgo; });
           window._monitorResuming = true;
+
+          // 移动端：检查视频流是否还活着，可能需要重新获取
+          if (IS_MOBILE && monitorStream) {
+            var tracksEnded = monitorStream.getTracks().some(function(t) { return t.readyState === 'ended'; });
+            var videoEl = document.getElementById('monitor-video');
+            var videoDead = videoEl && videoEl.readyState < 2;
+            if (tracksEnded || videoDead) {
+              console.warn('[监测] 手机切换回来后视频流已失效，重新获取摄像头...');
+              updateMonitorStatus('face', 'warn', '画面分析: 重新获取摄像头...');
+              // 重新获取摄像头流
+              navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 960, max: 1280 } }
+              }).then(function(newStream) {
+                // 停止旧流的所有轨道
+                if (monitorStream) {
+                  monitorStream.getTracks().forEach(function(t) { t.stop(); });
+                }
+                monitorStream = newStream;
+                if (videoEl) {
+                  videoEl.srcObject = newStream;
+                  videoEl.play();
+                }
+                window._lastActiveVideoTime = performance.now();
+                console.log('[监测] 摄像头流已恢复，tracks:', newStream.getTracks().length);
+              }).catch(function(err) {
+                console.error('[监测] 重新获取摄像头失败:', err);
+                updateMonitorStatus('face', 'bad', '画面分析: 摄像头恢复失败');
+                showAlert('摄像头恢复失败: ' + err.message, 'danger', '摄像头错误');
+                stopMonitoring();
+              });
+            }
+          }
+
           updateMonitorStatus('face', 'warn', '画面分析: 恢复中 (等待视频帧...)');
           var resumeCheck = setInterval(function() {
             var v = document.getElementById('monitor-video');
@@ -6639,8 +6675,14 @@ function isPro() {
             }
           }, 500);
         }
+        // ========== 页面切到后台 ==========
         if (document.hidden && appState.monitorActive) {
           window._backgroundTime = Date.now();
+          // 电脑版弹窗提醒：切换应用时提醒用户保持正确姿势
+          if (!IS_MOBILE) {
+            showAlert('您已切换到其他应用，监测仍在后台运行。\n请注意保持正确的坐姿！', 'warn', '&#x1F6E1;');
+            addMonitorLog('warn', '用户切换到其他应用，监测在后台继续运行');
+          }
           // 后台运行时使用 setInterval 保证循环不被节流
           if (!window._bgMonitorInterval) {
             window._bgMonitorInterval = setInterval(function() {
@@ -6725,9 +6767,51 @@ function isPro() {
     if (videoTimeChanged) window._lastActiveVideoTime = frozenCheckNow;
     var isFrozen = (frozenCheckNow - (window._lastActiveVideoTime || 0)) > 5000 && (window._lastActiveVideoTime || 0) > 0;
     if (isFrozen) {
-      // 超过5秒没有新帧，视频可能冻结，跳过本帧避免异常值
+      // 超过5秒没有新帧，视频可能冻结
+      // 检查是否已经尝试恢复
+      if (!window._videoRecoveryAttempted) {
+        window._videoRecoveryAttempted = Date.now();
+        console.warn('[监测] 视频冻结超过5秒，尝试恢复...');
+        updateMonitorStatus('face', 'warn', '画面分析: 视频冻结，尝试恢复...');
+        // 尝试重新播放视频
+        var v = document.getElementById('monitor-video');
+        if (v) {
+          try { v.play(); } catch(e) {}
+        }
+      }
+      // 冻结超过15秒：移动端尝试重新获取摄像头流
+      var frozenDuration = frozenCheckNow - (window._lastActiveVideoTime || 0);
+      if (frozenDuration > 15000 && IS_MOBILE && monitorStream) {
+        var tracksEnded = monitorStream.getTracks().some(function(t) { return t.readyState === 'ended'; });
+        if (tracksEnded || !window._videoRecoveryRetry) {
+          window._videoRecoveryRetry = true;
+          console.warn('[监测] 视频冻结超过15秒，重新获取摄像头...');
+          updateMonitorStatus('face', 'warn', '画面分析: 重新获取摄像头...');
+          navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 720, max: 1280 }, height: { ideal: 960, max: 1280 } }
+          }).then(function(newStream) {
+            if (monitorStream) monitorStream.getTracks().forEach(function(t) { t.stop(); });
+            monitorStream = newStream;
+            var vid = document.getElementById('monitor-video');
+            if (vid) { vid.srcObject = newStream; vid.play(); }
+            window._lastActiveVideoTime = performance.now();
+            window._videoRecoveryAttempted = 0;
+            window._videoRecoveryRetry = false;
+            updateMonitorStatus('face', 'good', '画面分析: 已恢复');
+            addMonitorLog('info', '视频冻结后自动恢复成功');
+          }).catch(function(err) {
+            console.error('[监测] 恢复失败:', err);
+            window._videoRecoveryRetry = false;
+          });
+        }
+      }
+      // 跳过本帧避免异常值
       if (appState.monitorActive) monitorAnimFrame = setTimeout(() => runMonitorLoop(video), 500);
       return;
+    }
+    // 视频恢复后重置标记
+    if (!isFrozen && window._videoRecoveryAttempted && frozenCheckNow - window._videoRecoveryAttempted > 3000) {
+      window._videoRecoveryAttempted = 0;
     }
 
     // 每60秒检查一次会员状态和免费时长（防止监测期间Pro到期且免费时间耗尽）
