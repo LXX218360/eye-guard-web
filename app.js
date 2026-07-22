@@ -6765,7 +6765,7 @@ function isPro() {
         if (window._titleBlinkInterval) { clearInterval(window._titleBlinkInterval); window._titleBlinkInterval = null; }
         if (window._origTitle) { document.title = window._origTitle; window._origTitle = null; }
         // 弹 modal 确保用户看到
-        showModal('后台监测提醒', '您刚才切换到了其他应用，监测在后台继续运行。请保持正确的坐姿！', '我知道了', false);
+        // 后台提醒已通过 Notification API 发送，不再弹 Modal
       };
       window.addEventListener('blur', window._blurHandler);
       window.addEventListener('focus', window._focusHandler);
@@ -6979,8 +6979,11 @@ function isPro() {
 
     if (monitorPageVisible) {
       if (drawThisFrame) {
-        canvas.width = w;
-        canvas.height = h;
+        // 只在尺寸变化时重设 canvas（避免每帧重新分配内存导致内存泄漏）
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // 计算 object-fit:cover 的缩放和偏移，确保 canvas 坐标与视频显示精确对齐
@@ -7630,6 +7633,11 @@ function isPro() {
     stopFreeTimer();
     // 彻底清理定时器和动画帧
     if (monitorAnimFrame) { clearTimeout(monitorAnimFrame); monitorAnimFrame = null; }
+    // 关闭共享 AudioContext 释放音频资源
+    if (_sharedAudioCtx && _sharedAudioCtx.state !== 'closed') {
+      try { _sharedAudioCtx.close(); } catch(e) {}
+      _sharedAudioCtx = null;
+    }
     if (window._visHandler) { document.removeEventListener('visibilitychange', window._visHandler); window._visHandler = null; }
     if (window._blurHandler) { window.removeEventListener('blur', window._blurHandler); window._blurHandler = null; }
     if (window._focusHandler) { window.removeEventListener('focus', window._focusHandler); window._focusHandler = null; }
@@ -7820,19 +7828,28 @@ function isPro() {
     logList.scrollTop = 0;
   }
 
+  // 全局共享 AudioContext，避免每次播放提示音都创建新的（内存泄漏）
+  var _sharedAudioCtx = null;
+  function getAudioContext() {
+    if (!_sharedAudioCtx || _sharedAudioCtx.state === 'closed') {
+      _sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return _sharedAudioCtx;
+  }
+
   function playAlertSound(type) {
     if (!appState.alertSound) return;
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = getAudioContext();
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
 
       if (type === 'distance') {
-        // 距离提醒：低频双音（音量翻倍）
+        // 距离提醒：低频双音
         oscillator.frequency.value = 440;
-        gainNode.gain.value = 1.2; // 原值0.6，翻倍
+        gainNode.gain.value = 1.2;
         oscillator.start();
         oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
         oscillator.frequency.setValueAtTime(520, audioCtx.currentTime + 0.15);
@@ -7840,9 +7857,9 @@ function isPro() {
         gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
         oscillator.stop(audioCtx.currentTime + 0.5);
       } else {
-        // 默认提醒：高频三音（音量翻倍）
+        // 默认提醒：高频三音
         oscillator.frequency.value = 660;
-        gainNode.gain.value = 0.8; // 原值0.4，翻倍
+        gainNode.gain.value = 0.8;
         oscillator.start();
         oscillator.frequency.setValueAtTime(660, audioCtx.currentTime);
         oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1);
@@ -7851,7 +7868,10 @@ function isPro() {
         oscillator.stop(audioCtx.currentTime + 0.4);
       }
 
-      // 手机/平板振动反馈（三连振）
+      // 声音播放完毕后关闭 oscillator，释放资源
+      oscillator.onended = function() { try { oscillator.disconnect(); } catch(e) {} };
+
+      // 手机/平板振动反馈
       if (navigator.vibrate) {
         navigator.vibrate([200, 100, 200, 100, 300]);
       }
