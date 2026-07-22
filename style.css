@@ -1457,23 +1457,23 @@
       --eye-glass-border: rgba(200,190,170,0.40);
       --eye-gradient-primary: linear-gradient(135deg, #5a8f5a 0%, #8b7d3a 100%);
     }
-    /* 深色护眼（从深色主题切换）：深暖棕基调，保持暗色 */
+    /* 深色护眼（从深色主题切换）：深蓝绿暖调，医学护眼风格 */
     body.eye-care-mode[data-eye-care-base="dark"] {
-      --eye-bg: #1a1814;
-      --eye-bg2: #24201c;
-      --eye-bg3: #2e2a24;
-      --eye-ink: #e8e4d8;
-      --eye-muted: #9a9488;
-      --eye-rule: #3a3530;
-      --eye-accent: #6aaf6a;
-      --eye-accent2: #b8a85a;
-      --eye-danger: #e07060;
-      --eye-warning: #d4a050;
-      --eye-success: #6aaf6a;
-      --eye-card-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.10);
-      --eye-glass-bg: rgba(36,32,28,0.85);
-      --eye-glass-border: rgba(80,72,64,0.40);
-      --eye-gradient-primary: linear-gradient(135deg, #6aaf6a 0%, #b8a85a 100%);
+      --eye-bg: #111a1e;
+      --eye-bg2: #172428;
+      --eye-bg3: #1e2e33;
+      --eye-ink: #d8e8e0;
+      --eye-muted: #7a9a8e;
+      --eye-rule: #2a3e42;
+      --eye-accent: #4ec6a0;
+      --eye-accent2: #88c8a8;
+      --eye-danger: #e88070;
+      --eye-warning: #d4b050;
+      --eye-success: #4ec6a0;
+      --eye-card-shadow: 0 2px 16px rgba(0,20,20,0.25), 0 1px 4px rgba(0,20,20,0.15);
+      --eye-glass-bg: rgba(23,36,40,0.88);
+      --eye-glass-border: rgba(78,198,160,0.12);
+      --eye-gradient-primary: linear-gradient(135deg, #3a9e8a 0%, #68b8a0 100%);
     }
 
     body.eye-care-mode {
@@ -1503,7 +1503,7 @@
     }
     body.eye-care-mode .sidebar .logo-icon {
       background: var(--eye-gradient-primary) !important;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+      box-shadow: 0 4px 20px rgba(58,158,138,0.30) !important;
     }
     body.eye-care-mode .sidebar .logo-text { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .logo-sub { color: var(--eye-muted) !important; }
@@ -1512,7 +1512,7 @@
     body.eye-care-mode .sidebar .nav-item.active {
       background: var(--eye-gradient-primary) !important;
       color: var(--eye-ink) !important;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
+      box-shadow: 0 4px 20px rgba(58,158,138,0.25) !important;
     }
     body.eye-care-mode .sidebar .eye-mode-label { color: var(--eye-ink) !important; }
     body.eye-care-mode .sidebar .eye-mode-toggle {
