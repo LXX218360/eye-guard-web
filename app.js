@@ -125,7 +125,7 @@
   const ROLE_MAP = { student:'备考学生', office:'上班族', parent:'家长', other:'其他' };
   const SCENE_PRESETS = {
     office:  { name:'办公', dist:45, distWarn:55, time:30, blink:10, blinkWarn:15 },
-    reading: { name:'阅读', dist:35, distWarn:45, time:20, blink:12, blinkWarn:17 },
+    reading: { name:'阅读', dist:40, distWarn:50, time:20, blink:12, blinkWarn:17 },
     gaming:  { name:'游戏', dist:55, distWarn:65, time:25, blink:8,  blinkWarn:13 },
     video:   { name:'影视', dist:80, distWarn:90, time:40, blink:15, blinkWarn:20 },
     custom:  { name:'自定义', dist:45, distWarn:55, time:30, blink:10, blinkWarn:15 }
