@@ -6142,6 +6142,7 @@
   }
 
   var _freeTimerInterval = null, _freeSecondsRemaining = 0;
+  var _proDailyTimerInterval = null, _proDailyUsedSeconds = 0; // Pro用户每日使用时长追踪
   window._freeServerQueried = false; // 标记是否已向服务器查询过免费试用剩余时间
   // _freeUsageReportTimer 在第5925行声明（联网免费试用追踪区域）
   var _pendingReportSeconds = 0; // 待上报的秒数（累计到整分钟再上报）
@@ -6156,7 +6157,7 @@
   }
 
   function startFreeTimer() {
-    if (isPro()) return;
+    if (isPro()) { startProDailyTimer(); return; }
     var today = _getTodayStrUTC8();
     if (appState.freeMinutesDate !== today) {
       appState.freeMinutesUsedToday = 0;
@@ -6241,12 +6242,87 @@
     }
     var b = document.getElementById('pro-timer-badge');
     if (b) b.style.display = 'none';
+    stopProDailyTimer();
+  }
+  // Pro用户每日使用时长追踪（不限制使用时间，只统计）
+  function startProDailyTimer() {
+    var today = _getTodayStrUTC8();
+    // 从IndexedDB恢复今日已用时长
+    var todayKey = 'proDaily_' + today;
+    dbGet('settings', todayKey).then(function(rec) {
+      _proDailyUsedSeconds = (rec && rec.value) ? rec.value : 0;
+      // 如果日期不是今天，说明跨天了，重置
+      if (rec && rec.date && rec.date !== today) {
+        _proDailyUsedSeconds = 0;
+      }
+      updateSidebarDailyTimer();
+      // 启动秒级计时器
+      if (_proDailyTimerInterval) clearInterval(_proDailyTimerInterval);
+      _proDailyTimerInterval = setInterval(function() {
+        _proDailyUsedSeconds++;
+        // 每30秒持久化一次（减少IndexedDB写入频率）
+        if (_proDailyUsedSeconds % 30 === 0) {
+          dbPut('settings', { key: 'proDaily_' + today, value: _proDailyUsedSeconds, date: today });
+        }
+        updateSidebarDailyTimer();
+      }, 1000);
+    }).catch(function() {
+      _proDailyUsedSeconds = 0;
+      updateSidebarDailyTimer();
+      if (_proDailyTimerInterval) clearInterval(_proDailyTimerInterval);
+      _proDailyTimerInterval = setInterval(function() {
+        _proDailyUsedSeconds++;
+        if (_proDailyUsedSeconds % 30 === 0) {
+          dbPut('settings', { key: 'proDaily_' + today, value: _proDailyUsedSeconds, date: today });
+        }
+        updateSidebarDailyTimer();
+      }, 1000);
+    });
+  }
+  function stopProDailyTimer() {
+    if (_proDailyTimerInterval) {
+      clearInterval(_proDailyTimerInterval);
+      _proDailyTimerInterval = null;
+    }
+    // 停止时持久化
+    if (_proDailyUsedSeconds > 0) {
+      var today = _getTodayStrUTC8();
+      dbPut('settings', { key: 'proDaily_' + today, value: _proDailyUsedSeconds, date: today });
+    }
+    var timerEl = document.getElementById('sidebar-daily-timer');
+    if (timerEl && !isPro()) timerEl.style.display = 'none';
   }
   function updateFreeTimerDisplay() {
     var el = document.getElementById('pro-timer-remaining'); if (!el) return;
     var m = Math.floor(_freeSecondsRemaining / 60), s = _freeSecondsRemaining % 60;
     el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
     el.style.color = _freeSecondsRemaining <= 300 ? 'var(--danger)' : '';
+    updateSidebarDailyTimer();
+  }
+  // 更新侧边栏中的每日使用时长显示（免费用户显示剩余，Pro用户显示已用）
+  function updateSidebarDailyTimer() {
+    var timerEl = document.getElementById('sidebar-daily-timer');
+    var valueEl = document.getElementById('sidebar-daily-value');
+    if (!timerEl || !valueEl) return;
+    timerEl.style.display = 'flex';
+    var totalLimit = appState.freeDailyLimit || 40;
+    if (isPro()) {
+      // Pro用户：显示今日已用时长（从免费计时器的逻辑推导）
+      var usedMin = appState.freeMinutesUsedToday || 0;
+      // Pro用户也需要追踪每日使用时间
+      if (typeof _proDailyUsedSeconds !== 'undefined' && _proDailyUsedSeconds > 0) {
+        usedMin = Math.ceil(_proDailyUsedSeconds / 60);
+      }
+      valueEl.textContent = usedMin + '分钟';
+      timerEl.querySelector('.sdt-label').textContent = '今日已用';
+    } else {
+      // 免费用户：显示剩余时长
+      var remaining = Math.floor(_freeSecondsRemaining / 60);
+      valueEl.textContent = remaining + '分钟';
+      timerEl.querySelector('.sdt-label').textContent = '今日剩余';
+      valueEl.style.color = remaining <= 5 ? 'var(--danger)' : 'var(--accent)';
+    }
+  }
   }
   var _proVerified = false;
   var _apiWarningShown = false;
