@@ -6323,7 +6323,6 @@
       valueEl.style.color = remaining <= 5 ? 'var(--danger)' : 'var(--accent)';
     }
   }
-  }
   var _proVerified = false;
   var _apiWarningShown = false;
 
