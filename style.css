@@ -224,6 +224,9 @@
     .pro-upgrade-text { font-size: 12px; color: var(--muted); }
     .pro-activated .pro-badge { background: linear-gradient(135deg, #ffd700, #ff8c00); }
     .pro-activated .pro-upgrade-text { color: #ffd700; }
+    .sidebar-daily-timer { padding: 8px 20px; border-top: 1px solid var(--rule); display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .sidebar-daily-timer .sdt-label { color: var(--muted); }
+    .sidebar-daily-timer .sdt-value { color: var(--accent); font-weight: 600; }
     .pro-lock-overlay { position: relative; }
     .pro-lock-overlay::after { content: 'PRO'; position: absolute; top: 8px; right: 8px; background: linear-gradient(135deg, #00d4aa, #0099ff); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.1em; z-index: 2; }
     .pro-locked-blur { filter: blur(4px); pointer-events: none; user-select: none; }
