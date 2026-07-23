@@ -6702,7 +6702,7 @@ function isPro() {
           // 桌面通知：页面切到后台时发送系统通知（Notification API 在页面 hidden 时也能工作）
           if (!IS_MOBILE && 'Notification' in window) {
             console.log('[通知] visibilitychange->hidden, Notification.permission =', Notification.permission);
-            if (Notification.permission === 'granted') {
+            if (Notification.permission === 'granted' && appState.permissions.autoRequestNotification !== false) {
               try {
                 var n = new Notification('眼部卫士 - 后台监测中', {
                   body: '您已离开页面，监测仍在后台运行。请保持正确的坐姿！',
@@ -6737,13 +6737,11 @@ function isPro() {
         // 立即显示 toast 弹窗（此时 DOM 还可渲染）
         showAlert('您已切换到其他应用，监测在后台运行中，请保持正确坐姿！', 'warn', '&#x26A0;');
         // 标题闪烁提醒
+        // 不再闪烁标题，避免标签页名称乱变
         window._origTitle = document.title;
-        window._titleBlinkInterval = setInterval(function() {
-          document.title = document.title === '眼部卫士' ? '⚠ 请注意坐姿！' : '眼部卫士';
-        }, 1500);
         addMonitorLog('warn', '用户切换到其他应用，监测在后台继续运行');
-        // 桌面通知
-        if ('Notification' in window && Notification.permission === 'granted') {
+        // 桌面通知 —— 必须同时检查浏览器权限和应用内开关
+        if ('Notification' in window && Notification.permission === 'granted' && appState.permissions.autoRequestNotification !== false) {
           try {
             new Notification('眼部卫士', {
               body: '您已切换到其他应用，监测仍在后台运行。请保持正确的坐姿！',
@@ -7741,9 +7739,9 @@ function isPro() {
           updateMetricValue('m-alert-count', monitorAlertCount, monitorAlertCount > 0 ? 'bad' : 'good');
           playAlertSound(metricName);
           addMonitorLog('warning', '提醒: ' + (metricNameCN[metricName] || metricName) + ' 持续异常超过 ' + threshold + '秒');
-          // 桌面通知弹窗（即使最小化也能看到）
+          // 桌面通知弹窗（即使最小化也能看到）—— 必须同时检查浏览器权限和应用内开关
           try {
-            if ((typeof Notification !== 'undefined') && Notification.permission === 'granted') {
+            if ((typeof Notification !== 'undefined') && Notification.permission === 'granted' && appState.permissions.autoRequestNotification !== false) {
               var notifyMetric = metricNameCN[metricName] || metricName;
               var n = new Notification('\u62A4\u773C\u7CBE\u7075 - \u7528\u773C\u9884\u8B66', {
                 body: notifyMetric + ' 持\u7EED\u5F02\u5E38\u8D85\u8FC7 ' + threshold + '\u79D2\uFF0C\u8BF7\u53CA\u65F6\u8C03\u6574\uFF01',
