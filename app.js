@@ -1694,41 +1694,29 @@
         document.getElementById('clear-data-confirm').classList.remove('show');
         showAlert('监测记录已清除，设置与激活码已保留', 'info', '&#x1F5D1;');
       } else {
-        // 清除所有数据，但先备份激活码
-        var proBackup = null, phoneBackup = null;
-        try {
-          var settingsAll = await dbGetAll('settings');
-          settingsAll.forEach(function(s) {
-            if (s.key === 'proLicense') proBackup = s.value;
-            if (s.key === 'boundPhone') phoneBackup = s.value;
-          });
-        } catch(e) {}
-
+        // 清除所有数据（包括Pro激活状态，换手机号登录需要重新激活）
         await dbClear('sessions');
         await dbClear('settings');
         await dbClear('calibration');
 
-        // 恢复激活码
-        if (proBackup) {
-          await dbPut('settings', { key: 'proLicense', value: proBackup });
-          appState.pro = proBackup;
-          _proVerified = true;
-        }
-        if (phoneBackup) {
-          await dbPut('settings', { key: 'boundPhone', value: phoneBackup });
-        }
+        // 重置Pro状态（不恢复，需要重新激活）
+        appState.pro = { activated: false, code: null, activatedAt: null, planType: null, expiresAt: null };
+        _proVerified = false;
+        window._proServerValidated = false;
+        window._proServerValid = false;
 
         document.getElementById('clear-data-confirm').classList.remove('show');
         // 清除隐私协议已接受标记，下次需要重新阅读
         localStorage.removeItem('eye_privacy_accepted');
-        showAlert('所有数据已清除，请重新阅读用户协议', 'info', '&#x1F5D1;');
-        // Re-init defaults (保留激活码)
+        showAlert('所有数据已清除，Pro状态已重置，请重新激活', 'info', '&#x1F5D1;');
+        // Re-init defaults
         Object.keys(DEVICE_DEFS).forEach(k => { appState.devices[k] = true; });
         appState.connectedDevices = {};
         appState.user = { nickname:'', role:'student', avatarColor:CONSTANTS.DEFAULT_AVATAR_GRADIENT, firstTime:true, avatarImage:'' };
         appState.thresholds = { distance:45, distanceWarn:55, intervalMin:0, intervalSec:30, interval:30, blink:10, blinkWarn:15, posture:70, postureWarn:80, ear:22 };
         appState.permissions = {};
         appState.exportFolderHandle = null;
+        appState.boundPhone = null;
         renderUserProfile();
         refreshDeviceCards();
         refreshPermissionToggles();
@@ -6353,13 +6341,12 @@
   window._proServerValid = false;
 
   function checkProOnServer() {
-    // 终身版不需要联网校验（离线容错）
-    if (appState.pro.planType === 'lifetime') return Promise.resolve(true);
     // 非激活状态不需要校验
     if (!appState.pro.activated || !appState.pro.code) return Promise.resolve(false);
     if (API_BASE_URL === null || API_BASE_URL === undefined) return Promise.resolve(!!appState.pro.activated);
 
     var phone = appState.pro.boundPhone || appState.user.phone || '';
+    // 终身版也需要联网校验手机号绑定关系（防止换号后仍保留Pro）
     return safeApiFetch(API_BASE_URL + '/api/pro_check', {
       method: 'POST',
       body: JSON.stringify({ code: appState.pro.code, phone: phone })
@@ -6392,7 +6379,7 @@
         return false;
       }
     }).catch(function() {
-      // 网络错误时信任本地缓存
+      // 网络错误时：终身版信任本地缓存（离线容错），其他类型也信任本地
       window._proServerValidated = false;
       return !!appState.pro.activated;
     });
@@ -6409,8 +6396,27 @@ function isPro() {
     // 未联网校验时，用本地缓存判断（离线容错）
     // 月卡/年卡必须已通过联网校验
     if (appState.pro.planType !== 'lifetime' && !_proVerified) return false;
+    // 终身版：需要触发联网校验（校验手机号绑定关系），未校验前暂不显示Pro
+    if (appState.pro.planType === 'lifetime' && !_proVerified) {
+      // 触发异步校验，校验完成前暂时返回false
+      if (API_BASE_URL && !window._lifetimeCheckTriggered) {
+        window._lifetimeCheckTriggered = true;
+        checkProOnServer().then(function(valid) {
+          if (valid) {
+            _proVerified = true;
+            updateProUI();
+          } else {
+            appState.pro = { activated: false, code: null, activatedAt: null, planType: null, expiresAt: null };
+            dbPut('settings', { key: 'proLicense', value: appState.pro });
+            updateProUI();
+            showAlert('终身版需要联网验证手机号绑定关系，验证失败已重置', 'warn', '&#x26A0;');
+          }
+        });
+      }
+      return false;
+    }
     if (appState.pro.planType === 'lifetime') {
-      // 永久版有本地缓存即视为有效（离线容错）
+      // 已通过校验的终身版，离线时信任本地缓存
       return true;
     }
     if (appState.pro.expiresAt && Date.now() > appState.pro.expiresAt) {
