@@ -6550,38 +6550,6 @@ function isPro() {
                 }
               }
             }
-            // 3. 请求蓝牙设备权限（桌面端）
-            if (navigator.bluetooth && !IS_MOBILE && !IS_TABLET) {
-              try {
-                console.log('[权限引导] 正在请求蓝牙设备权限...');
-                await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-                appState.permissions.bluetooth = 'granted';
-                await dbPut('settings', { key:'permissions', data: appState.permissions });
-                console.log('[权限引导] 蓝牙权限已获取');
-              } catch(btErr) {
-                console.warn('[权限引导] 蓝牙权限获取失败:', btErr.name, btErr.message);
-                appState.permissions.bluetooth = 'denied';
-                await dbPut('settings', { key:'permissions', data: appState.permissions });
-                var _isFile = window.location && window.location.protocol === 'file:';
-                if (_isFile) { showAlert('file:// 协议不支持蓝牙设备请求，请通过 localhost 访问', 'warn', '&#x26A0;'); }
-              }
-            }
-            // 4. 请求USB端口权限（桌面端）
-            if (navigator.serial && !IS_MOBILE && !IS_TABLET) {
-              try {
-                console.log('[权限引导] 正在请求USB端口权限...');
-                await navigator.serial.requestPort();
-                appState.permissions.usb = 'granted';
-                await dbPut('settings', { key:'permissions', data: appState.permissions });
-                console.log('[权限引导] USB权限已获取');
-              } catch(usbErr) {
-                console.warn('[权限引导] USB权限获取失败:', usbErr.name, usbErr.message);
-                appState.permissions.usb = 'denied';
-                await dbPut('settings', { key:'permissions', data: appState.permissions });
-                var _isFile2 = window.location && window.location.protocol === 'file:';
-                if (_isFile2) { showAlert('file:// 协议不支持USB端口请求，请通过 localhost 访问', 'warn', '&#x26A0;'); }
-              }
-            }
             resolve();
           })();
         },
