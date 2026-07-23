@@ -1164,9 +1164,13 @@
             toggle.classList.add('active');
             showAlert('蓝牙权限已授权', 'info', '&#x2705;');
           } catch (btErr) {
+            appState.permissions.bluetooth = 'denied';
+            await dbPut('settings', { key:'permissions', data: appState.permissions });
             console.warn('[权限] 蓝牙请求失败:', btErr.name, btErr.message);
             if (btErr.name === 'NotAllowedError') {
               errEl.textContent = '用户取消了蓝牙设备选择';
+            } else if (btErr.name === 'SecurityError') {
+              errEl.textContent = '当前环境不支持蓝牙请求（请使用 HTTPS 或 localhost）';
             } else {
               errEl.textContent = '蓝牙请求失败：' + (btErr.message || btErr.name);
             }
@@ -1189,9 +1193,13 @@
             toggle.classList.add('active');
             showAlert('USB权限已授权', 'info', '&#x2705;');
           } catch (usbErr) {
+            appState.permissions.usb = 'denied';
+            await dbPut('settings', { key:'permissions', data: appState.permissions });
             console.warn('[权限] USB请求失败:', usbErr.name, usbErr.message);
             if (usbErr.name === 'NotAllowedError') {
               errEl.textContent = '用户取消了USB端口选择';
+            } else if (usbErr.name === 'SecurityError') {
+              errEl.textContent = '当前环境不支持USB请求（请使用 HTTPS 或 localhost）';
             } else {
               errEl.textContent = 'USB请求失败：' + (usbErr.message || usbErr.name);
             }
@@ -6513,7 +6521,11 @@ function isPro() {
                   appState.permissions.notification = permResult;
                   console.log('[权限引导] 通知权限结果:', permResult);
                 }
-              } catch(e) { console.warn('[权限引导] 通知权限请求异常:', e); }
+              } catch(e) {
+                console.warn('[权限引导] 通知权限请求异常:', e);
+                var _isFile4 = window.location && window.location.protocol === 'file:';
+                if (_isFile4) { console.log('[权限引导] file:// 协议下通知权限可能不可用'); }
+              }
             }
             // 2. 再请求摄像头权限
             if (needCam) {
@@ -6530,9 +6542,11 @@ function isPro() {
                 console.log('[权限引导] 摄像头权限已获取');
               } catch(camErr) {
                 console.warn('[权限引导] 摄像头权限获取失败:', camErr.name, camErr.message);
-                if (camErr.name === 'NotAllowedError') {
-                  appState.permissions.camera = 'denied';
-                  await dbPut('settings', { key:'permissions', data: appState.permissions });
+                appState.permissions.camera = 'denied';
+                await dbPut('settings', { key:'permissions', data: appState.permissions });
+                var _isFile3 = window.location && window.location.protocol === 'file:';
+                if (_isFile3) {
+                  showAlert('浏览器不允许 file:// 协议访问摄像头，请通过 http://localhost 或 HTTPS 访问本页面', 'error', '&#x1F6AB;');
                 }
               }
             }
@@ -6546,7 +6560,10 @@ function isPro() {
                 console.log('[权限引导] 蓝牙权限已获取');
               } catch(btErr) {
                 console.warn('[权限引导] 蓝牙权限获取失败:', btErr.name, btErr.message);
-                if (btErr.name === 'NotAllowedError') { appState.permissions.bluetooth = 'denied'; }
+                appState.permissions.bluetooth = 'denied';
+                await dbPut('settings', { key:'permissions', data: appState.permissions });
+                var _isFile = window.location && window.location.protocol === 'file:';
+                if (_isFile) { showAlert('file:// 协议不支持蓝牙设备请求，请通过 localhost 访问', 'warn', '&#x26A0;'); }
               }
             }
             // 4. 请求USB端口权限（桌面端）
@@ -6559,7 +6576,10 @@ function isPro() {
                 console.log('[权限引导] USB权限已获取');
               } catch(usbErr) {
                 console.warn('[权限引导] USB权限获取失败:', usbErr.name, usbErr.message);
-                if (usbErr.name === 'NotAllowedError') { appState.permissions.usb = 'denied'; }
+                appState.permissions.usb = 'denied';
+                await dbPut('settings', { key:'permissions', data: appState.permissions });
+                var _isFile2 = window.location && window.location.protocol === 'file:';
+                if (_isFile2) { showAlert('file:// 协议不支持USB端口请求，请通过 localhost 访问', 'warn', '&#x26A0;'); }
               }
             }
             resolve();
@@ -6594,8 +6614,9 @@ function isPro() {
       });
       return;
     }
-    // 联网检查：必须联网才能开始监测
-    if (!navigator.onLine) {
+    // 联网检查：必须联网才能开始监测（离线模式跳过）
+    var isOfflineBundle = (window.location && window.location.protocol === 'file:') || !!window._OFFLINE_MODEL_AVAILABLE;
+    if (!navigator.onLine && !isOfflineBundle) {
       showAlert('当前无网络连接，请检查网络后重试', 'error', '&#x1F6AB;');
       return;
     }
@@ -9333,6 +9354,11 @@ function isPro() {
   setTimeout(function() {
     if (appState.monitorActive) return;
     if (appState.permissions.camera === 'granted') return;
+    var _isFile5 = window.location && window.location.protocol === 'file:';
+    if (_isFile5) {
+      console.log('[自动] 检测到 file:// 协议，跳过自动权限引导（摄像头不可用）');
+      return;
+    }
     var autoStartIfGranted = function() {
       if (appState.permissions.camera === 'granted') {
         console.log('[自动] 权限已获取，自动开始监测');
