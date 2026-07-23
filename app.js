@@ -1104,25 +1104,55 @@
             }
           });
         } else if (perm === 'bluetooth') {
-          // 只检查蓝牙是否可用，不搜索设备
+          // 真正请求蓝牙设备权限（硬件交互）
           const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
           if (!navigator.bluetooth) {
             errEl.textContent = isIOS ? 'iOS设备不支持Web Bluetooth API，请使用Android或桌面Chrome/Edge' : '您的浏览器不支持Web Bluetooth，请使用Chrome/Edge最新版';
             errEl.classList.add('show');
             return;
           }
-          appState.permissions.bluetooth = 'granted';
-          toggle.classList.add('active');
+          try {
+            console.log('[权限] 请求蓝牙设备...');
+            await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
+            appState.permissions.bluetooth = 'granted';
+            toggle.classList.add('active');
+            showAlert('蓝牙权限已授权', 'info', '&#x2705;');
+          } catch (btErr) {
+            console.warn('[权限] 蓝牙请求失败:', btErr.name, btErr.message);
+            if (btErr.name === 'NotAllowedError') {
+              errEl.textContent = '用户取消了蓝牙设备选择';
+            } else {
+              errEl.textContent = '蓝牙请求失败：' + (btErr.message || btErr.name);
+            }
+            errEl.classList.add('show');
+            toggle.classList.remove('active');
+            return;
+          }
         } else if (perm === 'usb') {
-          // 只检查USB是否可用，不搜索设备
+          // 真正请求USB端口权限（硬件交互）
           const isMobilePerm = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
           if (!navigator.serial) {
             errEl.textContent = isMobilePerm ? '移动设备不支持Web Serial API，请使用桌面Chrome/Edge' : '您的浏览器不支持Web Serial，请使用Chrome/Edge最新版';
             errEl.classList.add('show');
             return;
           }
-          appState.permissions.usb = 'granted';
-          toggle.classList.add('active');
+          try {
+            console.log('[权限] 请求USB端口...');
+            await navigator.serial.requestPort();
+            appState.permissions.usb = 'granted';
+            toggle.classList.add('active');
+            showAlert('USB权限已授权', 'info', '&#x2705;');
+          } catch (usbErr) {
+            console.warn('[权限] USB请求失败:', usbErr.name, usbErr.message);
+            if (usbErr.name === 'NotAllowedError') {
+              errEl.textContent = '用户取消了USB端口选择';
+            } else {
+              errEl.textContent = 'USB请求失败：' + (usbErr.message || usbErr.name);
+            }
+            errEl.classList.add('show');
+            toggle.classList.remove('active');
+            return;
+          }
         } else if (perm === 'notification') {
           // 通知权限开关：点击时请求通知权限
           var currentPerm = (typeof Notification !== 'undefined') ? Notification.permission : 'denied';
@@ -6420,9 +6450,9 @@ function isPro() {
         '立即授权',
         false,
         function() {
-          // 用户点击"立即授权"后，依次请求权限（先通知后摄像头，避免并行请求被吞）
+          // 用户点击"立即授权"后，依次请求所有权限（避免并行请求被吞）
           (async function() {
-            // 1. 先请求通知权限（轻量级，不阻塞摄像头）
+            // 1. 先请求通知权限（轻量级，不阻塞其他）
             if (needNotif) {
               try {
                 console.log('[权限引导] 正在请求通知权限...');
@@ -6452,6 +6482,32 @@ function isPro() {
                   appState.permissions.camera = 'denied';
                   await dbPut('settings', { key:'permissions', data: appState.permissions });
                 }
+              }
+            }
+            // 3. 请求蓝牙设备权限（桌面端）
+            if (navigator.bluetooth && !IS_MOBILE && !IS_TABLET) {
+              try {
+                console.log('[权限引导] 正在请求蓝牙设备权限...');
+                await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
+                appState.permissions.bluetooth = 'granted';
+                await dbPut('settings', { key:'permissions', data: appState.permissions });
+                console.log('[权限引导] 蓝牙权限已获取');
+              } catch(btErr) {
+                console.warn('[权限引导] 蓝牙权限获取失败:', btErr.name, btErr.message);
+                if (btErr.name === 'NotAllowedError') { appState.permissions.bluetooth = 'denied'; }
+              }
+            }
+            // 4. 请求USB端口权限（桌面端）
+            if (navigator.serial && !IS_MOBILE && !IS_TABLET) {
+              try {
+                console.log('[权限引导] 正在请求USB端口权限...');
+                await navigator.serial.requestPort();
+                appState.permissions.usb = 'granted';
+                await dbPut('settings', { key:'permissions', data: appState.permissions });
+                console.log('[权限引导] USB权限已获取');
+              } catch(usbErr) {
+                console.warn('[权限引导] USB权限获取失败:', usbErr.name, usbErr.message);
+                if (usbErr.name === 'NotAllowedError') { appState.permissions.usb = 'denied'; }
               }
             }
             resolve();
