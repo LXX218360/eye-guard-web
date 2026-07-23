@@ -20,7 +20,7 @@
       const threshold = 160;
       const check = function() {
         if ((window.outerWidth - window.innerWidth) > threshold || (window.outerHeight - window.innerHeight) > threshold) {
-          document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0e17;color:#fff;font-size:18px;">&#x1F6AB; 检测到开发者工具，页面已锁定</div>';
+          document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:CONSTANTS.DEVTOOLS_BG;color:CONSTANTS.DEVTOOLS_TEXT;font-size:18px;">&#x1F6AB; 检测到开发者工具，页面已锁定</div>';
         }
       };
       window.addEventListener('resize', check);
@@ -35,6 +35,50 @@
   // ===================== Mobile Detection =====================
   const IS_MOBILE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const IS_TABLET = /iPad|Android(?!.*Mobile)/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // ===================== 常量定义 =====================
+  const CONSTANTS = {
+    DEFAULT_AVATAR_GRADIENT: 'linear-gradient(135deg,#c8874d,#5a8f6a)',
+    DEVTOOLS_BG: '#0a0e17',
+    DEVTOOLS_TEXT: '#fff',
+    PRIMARY: '#c8874d',
+    SECONDARY: '#5a8f6a',
+    INFO: '#6a9ec8',
+    SUCCESS: '#5a8f6a',
+    WARNING: '#c8c464',
+    DANGER: '#c86464',
+    DIST_GOOD_08: 'rgba(106,155,106,0.8)',
+    DIST_GOOD_09: 'rgba(106,155,106,0.9)',
+    DIST_GOOD_07: 'rgba(106,155,106,0.7)',
+    DIST_GOOD_085: 'rgba(106,155,106,0.85)',
+    DIST_WARN_08: 'rgba(196,148,60,0.8)',
+    DIST_WARN_09: 'rgba(196,148,60,0.9)',
+    DIST_WARN_07: 'rgba(196,148,60,0.7)',
+    DIST_WARN_085: 'rgba(196,148,60,0.85)',
+    DIST_BAD_08: 'rgba(196,78,78,0.8)',
+    DIST_BAD_07: 'rgba(196,78,78,0.7)',
+    DIST_BAD_085: 'rgba(196,78,78,0.85)',
+    CHART_COLORS: ['#c8874d', '#5a8f6a', '#6a9ec8', '#c89a6a', '#8a6ac8', '#6ac8a8', '#c86a7a'],
+    ERROR: '#e74c3c',
+    WECHAT_GREEN: '#07c160',
+    ALIPAY_BLUE: '#1677ff',
+    GOLD: '#ffd700',
+    MUTED_TEXT: '#8a8578',
+    AXIS_LINE: '#d8d3c9',
+    SPLIT_LINE: '#ece8e0',
+    TOOLTIP_BG: 'rgba(28,37,56,0.92)',
+    TOOLTIP_BORDER: '#334155',
+    TOOLTIP_TEXT: '#f1f5f9',
+    HINT_BG: 'rgba(200,135,77,0.1)',
+    HINT_BORDER: 'rgba(200,135,77,0.3)',
+    CANVAS_GREEN_05: 'rgba(16,185,129,0.5)',
+    CANVAS_GREEN_07: 'rgba(16,185,129,0.7)',
+    CANVAS_GREEN_03: 'rgba(106,155,106,0.3)',
+    BUTTON_WARN_BG: 'rgba(196,148,60,0.8)',
+    BUTTON_SUCCESS_BG: 'rgba(90,143,106,0.8)',
+    BUTTON_GOOD_BG: 'rgba(106,155,106,0.8)',
+    BUTTON_MUTED_BG: 'rgba(140,130,115,0.6)',
+  };
+
 
   // 自动识别设备并应用对应布局
   (function() {
@@ -141,7 +185,7 @@
   };
 
   let appState = {
-    user: { nickname:'', role:'student', avatarColor:'linear-gradient(135deg,#c8874d,#5a8f6a)', firstTime:true, avatarImage:'' },
+    user: { nickname:'', role:'student', avatarColor:CONSTANTS.DEFAULT_AVATAR_GRADIENT, firstTime:true, avatarImage:'' },
     devices: {},
     permissions: { camera:'prompt', bluetooth:'prompt', usb:'prompt', notification:'default', autoRequestNotification: true },
     scene: 'office',
@@ -191,17 +235,19 @@
 
   // ===================== Modal =====================
   let modalCallback = null;
-  function showModal(title, desc, confirmText, isDanger, cb) {
+  let modalCancelCallback = null;
+  function showModal(title, desc, confirmText, isDanger, cb, cancelCb) {
     document.getElementById('modal-title').textContent = title;
     document.getElementById('modal-desc').textContent = desc;
     const btn = document.getElementById('modal-confirm');
     btn.textContent = confirmText || '确认';
     btn.className = 'modal-btn ' + (isDanger ? 'modal-btn-danger' : 'modal-btn-confirm');
     modalCallback = cb;
+    modalCancelCallback = cancelCb;
     document.getElementById('modal-overlay').classList.add('open');
   }
-  document.getElementById('modal-cancel').onclick = () => { document.getElementById('modal-overlay').classList.remove('open'); modalCallback = null; };
-  document.getElementById('modal-confirm').onclick = () => { document.getElementById('modal-overlay').classList.remove('open'); if (modalCallback) modalCallback(); modalCallback = null; };
+  document.getElementById('modal-cancel').onclick = () => { document.getElementById('modal-overlay').classList.remove('open'); if (modalCancelCallback) modalCancelCallback(); modalCallback = null; modalCancelCallback = null; };
+  document.getElementById('modal-confirm').onclick = () => { document.getElementById('modal-overlay').classList.remove('open'); if (modalCallback) modalCallback(); modalCallback = null; modalCancelCallback = null; };
 
   // ===================== Navigation =====================
   const PAGE_TITLES = { dashboard:'数据概览', monitor:'实时监测', stats:'数据统计', report:'健康报告', settings:'提醒设置' };
@@ -514,7 +560,7 @@
   }
   function getSelectedColor(container) {
     const s = container.querySelector('.color-option.selected');
-    return s ? s.dataset.color : 'linear-gradient(135deg,#c8874d,#5a8f6a)';
+    return s ? s.dataset.color : CONSTANTS.DEFAULT_AVATAR_GRADIENT;
   }
 
   // Color picker delegation
@@ -544,7 +590,7 @@
     var phoneError = document.getElementById('welcome-phone-error');
     if (phoneError) phoneError.textContent = '';
     selectRole(document.getElementById('welcome-role-selector'), appState.user.role || 'student');
-    selectColor(document.getElementById('welcome-color-picker'), appState.user.avatarColor || 'linear-gradient(135deg,#c8874d,#5a8f6a)');
+    selectColor(document.getElementById('welcome-color-picker'), appState.user.avatarColor || CONSTANTS.DEFAULT_AVATAR_GRADIENT);
     // 修改按钮文字
     var btn = document.getElementById('btn-complete-welcome');
     if (btn) btn.textContent = appState.user.firstTime ? '开始使用' : '保存设置';
@@ -1671,7 +1717,7 @@
         // Re-init defaults (保留激活码)
         Object.keys(DEVICE_DEFS).forEach(k => { appState.devices[k] = true; });
         appState.connectedDevices = {};
-        appState.user = { nickname:'', role:'student', avatarColor:'linear-gradient(135deg,#c8874d,#5a8f6a)', firstTime:true, avatarImage:'' };
+        appState.user = { nickname:'', role:'student', avatarColor:CONSTANTS.DEFAULT_AVATAR_GRADIENT, firstTime:true, avatarImage:'' };
         appState.thresholds = { distance:45, distanceWarn:55, intervalMin:0, intervalSec:30, interval:30, blink:10, blinkWarn:15, posture:70, postureWarn:80, ear:22 };
         appState.permissions = {};
         appState.exportFolderHandle = null;
@@ -5684,7 +5730,7 @@
     for (var i = 1; i <= 3; i++) {
       var dot = document.getElementById('pro-step-dot-' + i);
       if (dot) {
-        dot.style.background = i <= step ? '#ffd700' : 'var(--muted)';
+        dot.style.background = i <= step ? CONSTANTS.GOLD : 'var(--muted)';
         dot.style.opacity = i <= step ? '1' : '0.4';
       }
     }
@@ -5752,10 +5798,10 @@
     var tabW = document.getElementById('pay-tab-wechat');
     var tabA = document.getElementById('pay-tab-alipay');
     if (method === 'wechat') {
-      tabW.style.background = '#07c160'; tabW.style.color = '#fff'; tabW.style.borderColor = '#07c160';
+      tabW.style.background = CONSTANTS.WECHAT_GREEN; tabW.style.color = CONSTANTS.DEVTOOLS_TEXT; tabW.style.borderColor = CONSTANTS.WECHAT_GREEN;
       tabA.style.background = 'transparent'; tabA.style.color = 'var(--ink)'; tabA.style.borderColor = 'var(--rule)';
     } else {
-      tabA.style.background = '#1677ff'; tabA.style.color = '#fff'; tabA.style.borderColor = '#1677ff';
+      tabA.style.background = CONSTANTS.ALIPAY_BLUE; tabA.style.color = CONSTANTS.DEVTOOLS_TEXT; tabA.style.borderColor = CONSTANTS.ALIPAY_BLUE;
       tabW.style.background = 'transparent'; tabW.style.color = 'var(--ink)'; tabW.style.borderColor = 'var(--rule)';
     }
     if (qrImg) qrImg.style.display = 'none';
@@ -6230,7 +6276,7 @@
         var ctx = canvas.getContext('2d');
         ctx.textBaseline = 'top';
         ctx.font = '14px Arial';
-        ctx.fillStyle = '#f60';
+        ctx.fillStyle = CONSTANTS.PRIMARY;
         ctx.fillRect(125, 1, 62, 20);
         ctx.fillStyle = '#069';
         ctx.fillText('EyeGuard_FP', 2, 15);
@@ -6410,8 +6456,12 @@ function isPro() {
 
   // 权限引导弹窗：首次使用时提示用户即将请求摄像头和通知权限
   // 修复：合并引导弹窗和实际权限请求，避免用户需要点击两次（弹窗确认+浏览器授权）
+  var _permissionGuideShown = false;
   function _showPermissionGuideAndRequest() {
     return new Promise(function(resolve) {
+      // 防止重复弹出权限引导
+      if (_permissionGuideShown) { resolve(); return; }
+
       // 检查是否需要请求任何权限（camera 或 notification 仍为 default/prompt 状态）
       var needCam = (!appState.permissions.camera || appState.permissions.camera === 'prompt' || appState.permissions.camera === 'default');
       var needNotif = (typeof Notification !== 'undefined') && Notification.permission === 'default';
@@ -6420,6 +6470,7 @@ function isPro() {
 
       if (!needGuide) {
         // 所有权限已授权，直接继续
+        _permissionGuideShown = true;
         resolve();
         return;
       }
@@ -6450,6 +6501,7 @@ function isPro() {
         '立即授权',
         false,
         function() {
+          _permissionGuideShown = true; // 确认授权后才标记为已展示
           // 用户点击"立即授权"后，依次请求所有权限（避免并行请求被吞）
           (async function() {
             // 1. 先请求通知权限（轻量级，不阻塞其他）
@@ -6512,6 +6564,11 @@ function isPro() {
             }
             resolve();
           })();
+        },
+        function() {
+          // 取消回调：用户点击取消时重置标志，避免阻塞
+          _permissionGuideShown = false;
+          resolve();
         }
       );
       // 替换 modal-desc 内容为 HTML
@@ -7236,14 +7293,14 @@ function isPro() {
 
             // 检测框（仅在绘制帧时绘制，降低GPU压力）
             if (drawThisFrame) {
-            ctx.strokeStyle = distLevel === 'good' ? 'rgba(106,155,106,0.8)' : distLevel === 'warn' ? 'rgba(196,148,60,0.8)' : 'rgba(196,78,78,0.8)';
+            ctx.strokeStyle = distLevel === 'good' ? CONSTANTS.DIST_GOOD_08 : distLevel === 'warn' ? CONSTANTS.DIST_WARN_08 : CONSTANTS.DIST_BAD_08;
             ctx.lineWidth = 2;
             ctx.setLineDash([6, 4]);
             ctx.strokeRect(drawX, drawY, boxW, boxH);
             ctx.setLineDash([]);
 
             // 状态标签
-            ctx.fillStyle = distLevel === 'good' ? 'rgba(106,155,106,0.9)' : distLevel === 'warn' ? 'rgba(196,148,60,0.9)' : 'rgba(196,78,78,0.9)';
+            ctx.fillStyle = distLevel === 'good' ? CONSTANTS.DIST_GOOD_09 : distLevel === 'warn' ? CONSTANTS.DIST_WARN_09 : 'rgba(196,78,78,0.9)';
             const labelText = smoothDistCm + 'cm ' + smoothPosture + '\u00B0';
             ctx.font = 'bold 13px sans-serif';
             const textW = ctx.measureText(labelText).width;
@@ -7252,7 +7309,7 @@ function isPro() {
             ctx.fillText(labelText, drawX + 6, drawY - 7);
 
             // 绘制关键点（每5个点采样一个，避免太密）
-            ctx.fillStyle = 'rgba(16,185,129,0.5)';
+            ctx.fillStyle = CONSTANTS.CANVAS_GREEN_05;
             for (let i = 0; i < landmarks.length; i += 5) {
               const px = w - landmarks[i].x * w;
               const py = landmarks[i].y * h;
@@ -7262,7 +7319,7 @@ function isPro() {
             }
 
             // 绘制眼睛轮廓（高亮）
-            ctx.strokeStyle = 'rgba(16,185,129,0.7)';
+            ctx.strokeStyle = CONSTANTS.CANVAS_GREEN_07;
             ctx.lineWidth = 1.5;
             // 左眼轮廓
             const leftEyeIdx = [33, 160, 158, 133, 153, 144];
@@ -7288,7 +7345,7 @@ function isPro() {
             // 十字准心
             const cx = drawX + boxW / 2;
             const cy = drawY + boxH / 2;
-            ctx.strokeStyle = 'rgba(106,155,106,0.3)';
+            ctx.strokeStyle = CONSTANTS.CANVAS_GREEN_03;
             ctx.lineWidth = 1;
             ctx.setLineDash([3, 3]);
             ctx.beginPath();
@@ -7531,12 +7588,12 @@ function isPro() {
           const drawX = Math.max(0, skinCenterX - skinWidth / 2);
           const drawY = Math.max(0, Math.min(h - skinHeight, (skinCenterY / h) * h - skinHeight / 2));
           if (drawThisFrame) {
-          ctx.strokeStyle = distLevel === 'good' ? 'rgba(106,155,106,0.7)' : distLevel === 'warn' ? 'rgba(196,148,60,0.7)' : 'rgba(196,78,78,0.7)';
+          ctx.strokeStyle = distLevel === 'good' ? CONSTANTS.DIST_GOOD_07 : distLevel === 'warn' ? CONSTANTS.DIST_WARN_07 : CONSTANTS.DIST_BAD_07;
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 4]);
           ctx.strokeRect(drawX, drawY, skinWidth, skinHeight);
           ctx.setLineDash([]);
-          ctx.fillStyle = distLevel === 'good' ? 'rgba(106,155,106,0.85)' : distLevel === 'warn' ? 'rgba(196,148,60,0.85)' : 'rgba(196,78,78,0.85)';
+          ctx.fillStyle = distLevel === 'good' ? CONSTANTS.DIST_GOOD_085 : distLevel === 'warn' ? CONSTANTS.DIST_WARN_085 : CONSTANTS.DIST_BAD_085;
           const labelText = smoothDistCm + 'cm ' + smoothPosture + '\u00B0';
           ctx.font = 'bold 12px sans-serif';
           const textW = ctx.measureText(labelText).width;
@@ -7829,11 +7886,11 @@ function isPro() {
     if (btn) {
       if (appState.alertPaused) {
         btn.textContent = '恢复提醒';
-        btn.style.background = 'rgba(196,148,60,0.8)';
+        btn.style.background = CONSTANTS.DIST_WARN_08;
         showAlert('警告提醒已暂停', 'warn');
       } else {
         btn.textContent = '暂停提醒';
-        btn.style.background = 'rgba(90,143,106,0.8)';
+        btn.style.background = CONSTANTS.BUTTON_SUCCESS_BG;
         badStatusStartTime = {};
         showAlert('警告提醒已恢复', 'info');
       }
@@ -7846,10 +7903,10 @@ function isPro() {
     if (btn) {
       if (window._showFaceBox) {
         btn.textContent = '隐藏识别框';
-        btn.style.background = 'rgba(106,155,106,0.8)';
+        btn.style.background = CONSTANTS.DIST_GOOD_08;
       } else {
         btn.textContent = '显示识别框';
-        btn.style.background = 'rgba(140,130,115,0.6)';
+        btn.style.background = CONSTANTS.BUTTON_MUTED_BG;
       }
     }
     // 隐藏时立即清除canvas
@@ -8521,14 +8578,14 @@ function isPro() {
       console.error('[initAllCharts] echarts库未正确加载！typeof echarts:', typeof echarts);
       activePage.querySelectorAll('.chart-container').forEach(function(el) {
         if (el.children.length === 0) {
-          el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:#e74c3c;font-size:13px;text-align:center;padding:20px;">图表库加载失败<br>请刷新页面（Ctrl+F5）重试</div>';
+          el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:CONSTANTS.ERROR;font-size:13px;text-align:center;padding:20px;">图表库加载失败<br>请刷新页面（Ctrl+F5）重试</div>';
         }
       });
       return;
     }
 
     const theme = {
-      color: ['#c8874d', '#5a8f6a', '#6a9ec8', '#c89a6a', '#8a6ac8', '#6ac8a8', '#c86a7a'],
+      color: CONSTANTS.CHART_COLORS,
       backgroundColor: 'transparent'
     };
 
@@ -8543,14 +8600,14 @@ function isPro() {
       if (usageTrend) {
         usageTrend.setOption({
           ...theme,
-          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: function(p) { if (p && p[0]) return p[0].axisValue + '<br/>' + p[0].marker + ' ' + p[0].seriesName + ': ' + p[0].value + 'cm'; return ''; } },
+          tooltip: { trigger: 'axis', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 }, formatter: function(p) { if (p && p[0]) return p[0].axisValue + '<br/>' + p[0].marker + ' ' + p[0].seriesName + ': ' + p[0].value + 'cm'; return ''; } },
           grid: { left: 40, right: 20, top: 20, bottom: 30 },
-          xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: '#d8d3c9' } }, axisLabel: { color: '#8a8578' } },
-          yAxis: { type: 'value', name: 'cm', axisLine: { show: false }, splitLine: { lineStyle: { color: '#ece8e0' } }, axisLabel: { color: '#8a8578' } },
+          xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: CONSTANTS.AXIS_LINE } }, axisLabel: { color: CONSTANTS.MUTED_TEXT } },
+          yAxis: { type: 'value', name: 'cm', axisLine: { show: false }, splitLine: { lineStyle: { color: CONSTANTS.SPLIT_LINE } }, axisLabel: { color: CONSTANTS.MUTED_TEXT } },
           series: [{
             type: 'line', data: [0, 0, 0, 0, 0, 0, 0],
-            smooth: true, areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(200,135,77,0.3)'},{offset:1,color:'rgba(200,135,77,0.02)'}]) },
-            lineStyle: { color: '#c8874d', width: 2 }, itemStyle: { color: '#c8874d' }
+            smooth: true, areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:CONSTANTS.HINT_BORDER},{offset:1,color:'rgba(200,135,77,0.02)'}]) },
+            lineStyle: { color: CONSTANTS.PRIMARY, width: 2 }, itemStyle: { color: CONSTANTS.PRIMARY }
           }]
         });
         chartInstances['usageTrend'] = usageTrend;
@@ -8561,11 +8618,11 @@ function isPro() {
       if (alertPie) {
         alertPie.setOption({
           ...theme,
-          tooltip: { trigger: 'item', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: '{b}: {c}次 ({d}%)' },
+          tooltip: { trigger: 'item', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 }, formatter: '{b}: {c}次 ({d}%)' },
           series: [{
             type: 'pie', radius: ['40%', '65%'], center: ['50%', '50%'],
             data: [],
-            label: { color: '#8a8578', fontSize: 11 },
+            label: { color: CONSTANTS.MUTED_TEXT, fontSize: 11 },
             emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' } }
           }]
         });
@@ -8577,14 +8634,14 @@ function isPro() {
       if (heatmapChart) {
         heatmapChart.setOption({
           ...theme,
-          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: function(p) { if (p && p[0]) return p[0].axisValue + '<br/>' + p[0].marker + ' ' + p[0].seriesName + ': ' + p[0].value + '分钟'; return ''; } },
+          tooltip: { trigger: 'axis', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 }, formatter: function(p) { if (p && p[0]) return p[0].axisValue + '<br/>' + p[0].marker + ' ' + p[0].seriesName + ': ' + p[0].value + '分钟'; return ''; } },
           grid: { left: 40, right: 20, top: 20, bottom: 30 },
-          xAxis: { type: 'category', data: ['6-9时','9-12时','12-15时','15-18时','18-21时','21-24时'], axisLabel: { color: '#8a8578' } },
-          yAxis: { type: 'value', name: '分钟', axisLabel: { color: '#8a8578' }, splitLine: { lineStyle: { color: '#ece8e0' } } },
+          xAxis: { type: 'category', data: ['6-9时','9-12时','12-15时','15-18时','18-21时','21-24时'], axisLabel: { color: CONSTANTS.MUTED_TEXT } },
+          yAxis: { type: 'value', name: '分钟', axisLabel: { color: CONSTANTS.MUTED_TEXT }, splitLine: { lineStyle: { color: CONSTANTS.SPLIT_LINE } } },
           series: [{
             type: 'bar',
             data: [0, 0, 0, 0, 0, 0],
-            itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#c8874d'},{offset:1,color:'rgba(200,135,77,0.3)'}]), borderRadius: [4,4,0,0] }
+            itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:CONSTANTS.PRIMARY},{offset:1,color:CONSTANTS.HINT_BORDER}]), borderRadius: [4,4,0,0] }
           }]
         });
         chartInstances['heatmap'] = heatmapChart;
@@ -8599,16 +8656,16 @@ function isPro() {
       if (realtime) {
         realtime.setOption({
           ...theme,
-          tooltip: { trigger: 'item', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 }, formatter: '{b}: {c}分' },
+          tooltip: { trigger: 'item', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 }, formatter: '{b}: {c}分' },
           series: [{
             type: 'gauge', radius: '85%', startAngle: 200, endAngle: -20,
             axisLine: { lineStyle: { width: 15, color: [[0.3, '#c86464'], [0.7, '#c8c464'], [1, '#5a8f6a']] } },
-            pointer: { width: 4, itemStyle: { color: '#c8874d' } },
-            axisTick: { show: false }, splitLine: { length: 10, lineStyle: { color: '#d8d3c9' } },
-            axisLabel: { color: '#8a8578', distance: 18, fontSize: 11 },
-            detail: { valueAnimation: true, formatter: '{value}分', color: '#c8874d', fontSize: 24, fontWeight: 'bold', offsetCenter: [0, '70%'] },
+            pointer: { width: 4, itemStyle: { color: CONSTANTS.PRIMARY } },
+            axisTick: { show: false }, splitLine: { length: 10, lineStyle: { color: CONSTANTS.AXIS_LINE } },
+            axisLabel: { color: CONSTANTS.MUTED_TEXT, distance: 18, fontSize: 11 },
+            detail: { valueAnimation: true, formatter: '{value}分', color: CONSTANTS.PRIMARY, fontSize: 24, fontWeight: 'bold', offsetCenter: [0, '70%'] },
             data: [{ value: 0, name: '用眼健康' }],
-            title: { offsetCenter: [0, '90%'], color: '#8a8578', fontSize: 13 }
+            title: { offsetCenter: [0, '90%'], color: CONSTANTS.MUTED_TEXT, fontSize: 13 }
           }]
         });
         chartInstances['realtime'] = realtime;
@@ -8619,14 +8676,14 @@ function isPro() {
       if (compare) {
         compare.setOption({
           ...theme,
-          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
+          tooltip: { trigger: 'axis', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 } },
           grid: { left: 40, right: 20, top: 55, bottom: 30 },
-          legend: { data: ['本周', '上周'], textStyle: { color: '#8a8578', fontSize: 11 }, top: 38 },
-          xAxis: { type: 'category', data: days, axisLabel: { color: '#8a8578' } },
-          yAxis: { type: 'value', axisLabel: { color: '#8a8578' }, splitLine: { lineStyle: { color: '#ece8e0' } } },
+          legend: { data: ['本周', '上周'], textStyle: { color: CONSTANTS.MUTED_TEXT, fontSize: 11 }, top: 38 },
+          xAxis: { type: 'category', data: days, axisLabel: { color: CONSTANTS.MUTED_TEXT } },
+          yAxis: { type: 'value', axisLabel: { color: CONSTANTS.MUTED_TEXT }, splitLine: { lineStyle: { color: CONSTANTS.SPLIT_LINE } } },
           series: [
-            { name: '本周', type: 'bar', data: [0, 0, 0, 0, 0, 0, 0], itemStyle: { color: '#c8874d', borderRadius: [3,3,0,0] } },
-            { name: '上周', type: 'bar', data: [0, 0, 0, 0, 0, 0, 0], itemStyle: { color: 'rgba(200,135,77,0.3)', borderRadius: [3,3,0,0] } }
+            { name: '本周', type: 'bar', data: [0, 0, 0, 0, 0, 0, 0], itemStyle: { color: CONSTANTS.PRIMARY, borderRadius: [3,3,0,0] } },
+            { name: '上周', type: 'bar', data: [0, 0, 0, 0, 0, 0, 0], itemStyle: { color: CONSTANTS.HINT_BORDER, borderRadius: [3,3,0,0] } }
           ]
         });
         chartInstances['compare'] = compare;
@@ -8637,16 +8694,16 @@ function isPro() {
       if (radar) {
         radar.setOption({
           ...theme,
-          tooltip: { trigger: 'item', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
+          tooltip: { trigger: 'item', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 } },
           radar: {
             indicator: [
               { name: '眨眼', max: 100 }, { name: '距离', max: 100 },
               { name: '坐姿', max: 100 }, { name: '时长', max: 100 },
               { name: '频率', max: 100 }
             ],
-            axisName: { color: '#8a8578', fontSize: 11 },
-            splitArea: { areaStyle: { color: ['rgba(200,135,77,0.05)', 'rgba(200,135,77,0.1)'] } },
-            splitLine: { lineStyle: { color: '#ece8e0' } }
+            axisName: { color: CONSTANTS.MUTED_TEXT, fontSize: 11 },
+            splitArea: { areaStyle: { color: ['rgba(200,135,77,0.05)', CONSTANTS.HINT_BG] } },
+            splitLine: { lineStyle: { color: CONSTANTS.SPLIT_LINE } }
           },
           series: [{
             type: 'radar',
@@ -8654,8 +8711,8 @@ function isPro() {
               value: [0, 0, 0, 0, 0],
               name: '本周',
               areaStyle: { color: 'rgba(200,135,77,0.2)' },
-              lineStyle: { color: '#c8874d' },
-              itemStyle: { color: '#c8874d' }
+              lineStyle: { color: CONSTANTS.PRIMARY },
+              itemStyle: { color: CONSTANTS.PRIMARY }
             }]
           }]
         });
@@ -8669,15 +8726,15 @@ function isPro() {
       if (dailyDetail) {
         dailyDetail.setOption({
           ...theme,
-          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
+          tooltip: { trigger: 'axis', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 } },
           grid: { left: 50, right: 20, top: 40, bottom: 40 },
-          legend: { data: ['平均眨眼率', '平均距离(cm)', '预警次数'], textStyle: { color: '#8a8578' }, top: 5 },
-          xAxis: { type: 'category', data: timeSlotLabels, axisLabel: { color: '#8a8578', rotate: 20, fontSize: 10 } },
-          yAxis: { type: 'value', axisLabel: { color: '#8a8578' }, splitLine: { lineStyle: { color: '#ece8e0' } } },
+          legend: { data: ['平均眨眼率', '平均距离(cm)', '预警次数'], textStyle: { color: CONSTANTS.MUTED_TEXT }, top: 5 },
+          xAxis: { type: 'category', data: timeSlotLabels, axisLabel: { color: CONSTANTS.MUTED_TEXT, rotate: 20, fontSize: 10 } },
+          yAxis: { type: 'value', axisLabel: { color: CONSTANTS.MUTED_TEXT }, splitLine: { lineStyle: { color: CONSTANTS.SPLIT_LINE } } },
           series: [
-            { name: '平均眨眼率', type: 'line', smooth: true, data: [0,0,0,0,0,0,0,0], lineStyle: { color: '#c8874d' }, itemStyle: { color: '#c8874d' } },
-            { name: '平均距离(cm)', type: 'line', smooth: true, data: [0,0,0,0,0,0,0,0], lineStyle: { color: '#5a8f6a' }, itemStyle: { color: '#5a8f6a' } },
-            { name: '预警次数', type: 'bar', data: [0,0,0,0,0,0,0,0], itemStyle: { color: '#c86464', borderRadius: [2,2,0,0] } }
+            { name: '平均眨眼率', type: 'line', smooth: true, data: [0,0,0,0,0,0,0,0], lineStyle: { color: CONSTANTS.PRIMARY }, itemStyle: { color: CONSTANTS.PRIMARY } },
+            { name: '平均距离(cm)', type: 'line', smooth: true, data: [0,0,0,0,0,0,0,0], lineStyle: { color: CONSTANTS.SECONDARY }, itemStyle: { color: CONSTANTS.SECONDARY } },
+            { name: '预警次数', type: 'bar', data: [0,0,0,0,0,0,0,0], itemStyle: { color: CONSTANTS.DANGER, borderRadius: [2,2,0,0] } }
           ]
         });
         chartInstances['dailyDetail'] = dailyDetail;
@@ -8689,17 +8746,17 @@ function isPro() {
       if (healthTrend) {
         healthTrend.setOption({
           ...theme,
-          tooltip: { trigger: 'axis', backgroundColor: 'rgba(28,37,56,0.92)', borderColor: '#334155', textStyle: { color: '#f1f5f9', fontSize: 12 } },
+          tooltip: { trigger: 'axis', backgroundColor: CONSTANTS.TOOLTIP_BG, borderColor: CONSTANTS.TOOLTIP_BORDER, textStyle: { color: CONSTANTS.TOOLTIP_TEXT, fontSize: 12 } },
           grid: { left: 40, right: 40, top: 40, bottom: 30 },
-          legend: { data: ['健康评分', '平均视距(cm)'], textStyle: { color: '#8a8578' }, top: 5 },
-          xAxis: { type: 'category', data: trendDays, axisLabel: { color: '#8a8578', interval: 4 } },
+          legend: { data: ['健康评分', '平均视距(cm)'], textStyle: { color: CONSTANTS.MUTED_TEXT }, top: 5 },
+          xAxis: { type: 'category', data: trendDays, axisLabel: { color: CONSTANTS.MUTED_TEXT, interval: 4 } },
           yAxis: [
-            { type: 'value', name: '评分', min: 0, max: 100, axisLabel: { color: '#8a8578' }, splitLine: { lineStyle: { color: '#ece8e0' } } },
-            { type: 'value', name: 'cm', axisLabel: { color: '#8a8578' }, splitLine: { show: false } }
+            { type: 'value', name: '评分', min: 0, max: 100, axisLabel: { color: CONSTANTS.MUTED_TEXT }, splitLine: { lineStyle: { color: CONSTANTS.SPLIT_LINE } } },
+            { type: 'value', name: 'cm', axisLabel: { color: CONSTANTS.MUTED_TEXT }, splitLine: { show: false } }
           ],
           series: [
-            { name: '健康评分', type: 'line', smooth: true, data: trendDays.map(() => 0), lineStyle: { color: '#5a8f6a' }, itemStyle: { color: '#5a8f6a' }, areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(90,143,106,0.2)'},{offset:1,color:'rgba(90,143,106,0.01)'}]) } },
-            { name: '平均视距(cm)', type: 'bar', yAxisIndex: 1, data: trendDays.map(() => 0), itemStyle: { color: 'rgba(200,135,77,0.3)', borderRadius: [2,2,0,0] } }
+            { name: '健康评分', type: 'line', smooth: true, data: trendDays.map(() => 0), lineStyle: { color: CONSTANTS.SECONDARY }, itemStyle: { color: CONSTANTS.SECONDARY }, areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(90,143,106,0.2)'},{offset:1,color:'rgba(90,143,106,0.01)'}]) } },
+            { name: '平均视距(cm)', type: 'bar', yAxisIndex: 1, data: trendDays.map(() => 0), itemStyle: { color: CONSTANTS.HINT_BORDER, borderRadius: [2,2,0,0] } }
           ]
         });
         chartInstances['healthTrend'] = healthTrend;
@@ -8897,7 +8954,7 @@ function isPro() {
         title: {
           text: '本周 vs 上周对比',
           left: 'center', top: 2,
-          textStyle: { color: '#8a8578', fontSize: 13, fontWeight: 'normal' }
+          textStyle: { color: CONSTANTS.MUTED_TEXT, fontSize: 13, fontWeight: 'normal' }
         },
         graphic: [{
           type: 'text',
@@ -8941,8 +8998,8 @@ function isPro() {
             value: [blinkDim, distDim, postureDim, durationDim, freqDim],
             name: '综合评分: ' + weightedHealthScore(blinkDim, distDim, postureDim, durationDim) + '分',
             areaStyle: { color: 'rgba(200,135,77,0.2)' },
-            lineStyle: { color: '#c8874d' },
-            itemStyle: { color: '#c8874d' }
+            lineStyle: { color: CONSTANTS.PRIMARY },
+            itemStyle: { color: CONSTANTS.PRIMARY }
           }]
         }]
       });
@@ -8989,9 +9046,9 @@ function isPro() {
       chartInstances['dailyDetail'].setOption({
         xAxis: { data: timeSlots },
         series: [
-          { name: '平均眨眼率', type: 'line', smooth: true, data: movingAvg(blinkPerSlot, 3), lineStyle: { color: '#c8874d' }, itemStyle: { color: '#c8874d' } },
-          { name: '平均距离(cm)', type: 'line', smooth: true, data: movingAvg(distPerSlot, 3), lineStyle: { color: '#5a8f6a' }, itemStyle: { color: '#5a8f6a' } },
-          { name: '预警次数', type: 'bar', data: alertsPerSlot, itemStyle: { color: '#c86464', borderRadius: [2, 2, 0, 0] } }
+          { name: '平均眨眼率', type: 'line', smooth: true, data: movingAvg(blinkPerSlot, 3), lineStyle: { color: CONSTANTS.PRIMARY }, itemStyle: { color: CONSTANTS.PRIMARY } },
+          { name: '平均距离(cm)', type: 'line', smooth: true, data: movingAvg(distPerSlot, 3), lineStyle: { color: CONSTANTS.SECONDARY }, itemStyle: { color: CONSTANTS.SECONDARY } },
+          { name: '预警次数', type: 'bar', data: alertsPerSlot, itemStyle: { color: CONSTANTS.DANGER, borderRadius: [2, 2, 0, 0] } }
         ]
       });
     }
@@ -9013,7 +9070,7 @@ function isPro() {
       if (alertTypes.posture > 0) pieData.push({ value: alertTypes.posture, name: '坐姿不良' });
       // 如果没有预警数据，显示"暂无预警"
       if (pieData.length === 0) {
-        pieData.push({ value: 1, name: '暂无预警', itemStyle: { color: '#d8d3c9' } });
+        pieData.push({ value: 1, name: '暂无预警', itemStyle: { color: CONSTANTS.AXIS_LINE } });
       }
       chartInstances['alertPie'].setOption({
         series: [{ data: pieData }]
@@ -9271,6 +9328,30 @@ function isPro() {
 
   // Start app
   init();
+
+  // 自动检测权限：首次使用时自动弹出权限引导，授权后自动开始监测
+  setTimeout(function() {
+    if (appState.monitorActive) return;
+    if (appState.permissions.camera === 'granted') return;
+    var autoStartIfGranted = function() {
+      if (appState.permissions.camera === 'granted') {
+        console.log('[自动] 权限已获取，自动开始监测');
+        startMonitoring();
+      }
+    };
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({name:'camera'}).then(function(status) {
+        if (status.state === 'prompt') {
+          console.log('[自动] 检测到摄像头权限未授权，自动弹出权限引导');
+          _showPermissionGuideAndRequest().then(autoStartIfGranted);
+        }
+      }).catch(function() {
+        _showPermissionGuideAndRequest().then(autoStartIfGranted);
+      });
+    } else {
+      _showPermissionGuideAndRequest().then(autoStartIfGranted);
+    }
+  }, 2000);
 
   // 启动时后台检查 GitHub 是否有更新版本（静默，不阻塞用户操作）
   (function checkForUpdate() {
