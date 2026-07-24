@@ -21,12 +21,11 @@ if not os.path.isdir(WWW_DIR):
     os.makedirs(WWW_DIR, exist_ok=True)
 
 GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/LXX218360/eye-guard-web/main/'
-FRONTEND_FILES = ['app.js', 'index.html', 'style.css', 'hmac-security.js', 'api_server.py']
+FRONTEND_FILES = ['app.js', 'index.html', 'style.css', 'hmac-security.js']
 
 def _sync_frontend_from_github():
-    """启动时从 GitHub 同步最新文件（通过 MD5 哈希判断是否需要更新）
-    支持同步 api_server.py 自身：下载为 api_server.py.new，避免覆盖运行中进程"""
-    import urllib.request, hashlib
+    """启动时从 GitHub 同步最新前端文件（通过版本号判断是否需要更新）"""
+    import urllib.request
     for fname in FRONTEND_FILES:
         try:
             url = GITHUB_RAW_BASE + fname
@@ -36,32 +35,30 @@ def _sync_frontend_from_github():
             with urllib.request.urlopen(req, timeout=30) as resp:
                 content = resp.read()
             remote_size = len(content)
-            remote_hash = hashlib.md5(content).hexdigest()
-
-            # 检查本地文件是否需要更新
+            # 读取本地文件前500字节检查版本号
             need_update = not os.path.exists(local_path)
             if not need_update:
                 try:
                     with open(local_path, 'rb') as f:
-                        local_hash = hashlib.md5(f.read()).hexdigest()
-                    need_update = local_hash != remote_hash
-                except Exception:
-                    need_update = True
-
+                        local_head = f.read(500).decode('utf-8', errors='ignore')
+                    remote_head = content[:500].decode('utf-8', errors='ignore')
+                    # 比较 Version: 行
+                    import re
+                    local_ver = re.search(r'Version:\s*([\d-]+v\d+)', local_head)
+                    remote_ver = re.search(r'Version:\s*([\d-]+v\d+)', remote_head)
+                    if remote_ver and local_ver:
+                        need_update = remote_ver.group(1) > local_ver.group(1)
+                    elif remote_ver and not local_ver:
+                        need_update = True  # 远程有版本号，本地没有
+                except:
+                    need_update = True  # 解析失败，强制更新
             if need_update:
-                # api_server.py 正在运行，不能直接覆盖；下载为 .new 文件，重启后生效
-                if fname == 'api_server.py':
-                    new_path = local_path + '.new'
-                    with open(new_path, 'wb') as f:
-                        f.write(content)
-                    print(f'[同步] {fname}: 已下载新版本 ({remote_size}B)，保存为 {fname}.new，重启后生效')
-                else:
-                    with open(local_path, 'wb') as f:
-                        f.write(content)
-                    www_path = os.path.join(WWW_DIR, fname)
-                    with open(www_path, 'wb') as f:
-                        f.write(content)
-                    print(f'[同步] {fname}: 已更新 ({remote_size}B)')
+                with open(local_path, 'wb') as f:
+                    f.write(content)
+                www_path = os.path.join(WWW_DIR, fname)
+                with open(www_path, 'wb') as f:
+                    f.write(content)
+                print(f'[同步] {fname}: 已更新 ({remote_size}B)')
             else:
                 print(f'[同步] {fname}: 已是最新')
         except Exception as e:
@@ -80,7 +77,7 @@ PLAN_CONFIG = {
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
-_db_lock = threading.RLock()
+_db_lock = threading.Lock()
 
 # ============================================================
 # CORS + OPTIONS preflight（解决 GitHub Pages 跨域问题）
@@ -120,18 +117,15 @@ def add_cors_and_sign(resp):
     resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     resp.headers['Access-Control-Max-Age'] = '86400'
 
-    # 自动对 JSON 响应添加 HMAC 签名，并确保序列化格式与签名一致（无空格分隔符）
+    # 自动对 JSON 响应添加 HMAC 签名
     if resp.content_type and resp.content_type.startswith('application/json'):
         try:
             body = resp.get_data(as_text=True)
             data = json.loads(body)
             path = request.path if hasattr(request, 'path') else ''
-            if '/api/pubkey' not in path:
-                if '_sig' not in data:
-                    data = sign_response(data)
-                # 无论签名是刚生成还是已有，都强制用无空格分隔符重新序列化
-                # 确保实际输出与 sign_response 签名时使用的格式一致
-                new_body = json.dumps(data, ensure_ascii=False, default=str, sort_keys=True, separators=(',', ':'))
+            if '_sig' not in data and '/api/pubkey' not in path:
+                data = sign_response(data)
+                new_body = json.dumps(data, ensure_ascii=False, default=str, sort_keys=True)
                 resp.set_data(new_body)
                 resp.headers['Content-Type'] = 'application/json; charset=utf-8'
         except Exception:
@@ -245,19 +239,8 @@ def hash_password(pw):
     return generate_password_hash(pw, method='pbkdf2:sha256', salt_length=16)
 
 def get_admin_password_hash():
-    with _db_lock:
-        db = load_db.__wrapped__() if hasattr(load_db, '__wrapped__') else _load_db_raw()
-        return db.get('_config', {}).get('admin_password', DEFAULT_PASSWORD)
-
-def _load_db_raw():
-    """不加锁的内部 load_db，供 get_admin_password_hash 等已持锁场景调用"""
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    db = load_db()
+    return db.get('_config', {}).get('admin_password', DEFAULT_PASSWORD)
 
 def set_admin_password(new_pw):
     db = load_db()
@@ -365,9 +348,7 @@ def seller_panel():
 # ============================================================
 
 def _find_static_file(filename):
-    """按优先级查找静态文件：www/ > BASE_DIR/
-    返回 (fpath, search_dir, actual_name) 其中 actual_name 是磁盘上实际匹配的文件名
-    """
+    """按优先级查找静态文件：www/ > BASE_DIR/"""
     # 中文文件名兼容映射（PythonAnywhere 可能自动翻译扩展名）
     name_aliases = {
         'face_landmarker.task': ['face_landmarker.task', 'face_landmarker.任务'],
@@ -377,8 +358,8 @@ def _find_static_file(filename):
         for name in candidates:
             fpath = os.path.join(search_dir, name)
             if os.path.exists(fpath) and os.path.isfile(fpath):
-                return fpath, search_dir, name
-    return None, None, None
+                return fpath, search_dir
+    return None, None
 
 # ============================================================
 # API：HMAC 签名公钥（前端验证响应完整性）
@@ -456,27 +437,26 @@ def api_generate():
     if phone and not is_valid_phone(phone):
         return jsonify({'success': False, 'msg': '手机号格式不正确'}), 400
 
-    with _db_lock:  # 持有锁完成整个读-生成-写周期，防止激活码冲突
-        db = load_db()
-        config = db.get('_config', {})
-        codes_db = {k: v for k, v in db.items() if not k.startswith('_')}
-        codes = []
-        max_attempts = count * 100
-        attempts = 0
-        for _ in range(count):
+    db = load_db()
+    config = db.get('_config', {})
+    codes_db = {k: v for k, v in db.items() if not k.startswith('_')}
+    codes = []
+    max_attempts = count * 100
+    attempts = 0
+    for _ in range(count):
+        code = generate_code(plan)
+        attempts += 1
+        while code in codes_db and attempts < max_attempts:
             code = generate_code(plan)
             attempts += 1
-            while code in codes_db and attempts < max_attempts:
-                code = generate_code(plan)
-                attempts += 1
-            if attempts >= max_attempts:
-                return jsonify({'success': False, 'msg': '激活码空间不足'}), 500
-            codes_db[code] = {
-                'plan': plan, 'phone': phone or '', 'used': False, 'created_at': time.time()
-            }
-            codes.append(code)
-        codes_db['_config'] = config
-        save_db(codes_db)
+        if attempts >= max_attempts:
+            return jsonify({'success': False, 'msg': '激活码空间不足'}), 500
+        codes_db[code] = {
+            'plan': plan, 'phone': phone or '', 'used': False, 'created_at': time.time()
+        }
+        codes.append(code)
+    codes_db['_config'] = config
+    save_db(codes_db)
     audit_log('生成激活码', f'plan={plan}, count={count}, by={get_client_ip()}')
     return jsonify({'success': True, 'codes': codes})
 
@@ -498,39 +478,36 @@ def api_activate():
     if not is_valid_phone(phone):
         return jsonify({'success': False, 'msg': '手机号格式不正确'}), 400
 
-    with _db_lock:  # 持有锁完成整个读-检查-写周期，防止并发激活同一手机号
-        db = load_db()
-        if code not in db or code.startswith('_'):
-            return jsonify({'success': False, 'msg': '激活码无效'})
+    db = load_db()
+    if code not in db or code.startswith('_'):
+        return jsonify({'success': False, 'msg': '激活码无效'})
 
-        rec = db[code]
+    rec = db[code]
 
-        if rec.get('phone') and rec['phone'] != phone:
-            return jsonify({'success': False, 'msg': '该激活码与手机号不匹配'})
+    if rec.get('phone') and rec['phone'] != phone:
+        return jsonify({'success': False, 'msg': '该激活码与手机号不匹配'})
 
-        if rec['used']:
-            if rec.get('phone') == phone:
-                result = _calc_membership(db, phone)
-                result['success'] = True
-                result['msg'] = '该手机号已激活'
-                result['plan'] = rec['plan']
-                return jsonify(result)
-            return jsonify({'success': False, 'msg': '该激活码已被其他手机号绑定'})
+    if rec['used']:
+        if rec.get('phone') == phone:
+            result = _calc_membership(db, phone)
+            result['success'] = True
+            result['msg'] = '该手机号已激活'
+            result['plan'] = rec['plan']
+            return jsonify(result)
+        return jsonify({'success': False, 'msg': '该激活码已被其他手机号绑定'})
 
-        for c, r in db.items():
-            if c == code or c.startswith('_'):
-                continue
-            if r.get('used') and r.get('phone') == phone:
-                return jsonify({'success': False, 'msg': '该手机号已绑定其他激活码，一个手机号只能绑定一个'})
+    for c, r in db.items():
+        if c == code or c.startswith('_'):
+            continue
+        if r.get('used') and r.get('phone') == phone:
+            return jsonify({'success': False, 'msg': '该手机号已绑定其他激活码，一个手机号只能绑定一个'})
 
-        rec['used'] = True
-        rec['phone'] = phone
-        rec['activated_at'] = time.time()
-        save_db(db)
-
+    rec['used'] = True
+    rec['phone'] = phone
+    rec['activated_at'] = time.time()
+    save_db(db)
     audit_log('激活', f'code={code}, phone={phone}, plan={rec["plan"]}')
 
-    db = load_db()
     result = _calc_membership(db, phone)
     result['success'] = True
     result['msg'] = '激活成功'
@@ -547,6 +524,7 @@ def _calc_membership(db, phone):
     active_codes = []
     all_codes = []
     now = time.time()
+    has_lifetime = False
     for c, r in db.items():
         if c.startswith('_') or not r.get('used') or r.get('phone') != phone:
             continue
@@ -554,6 +532,7 @@ def _calc_membership(db, phone):
         if r['plan'] == 'lifetime':
             total_remaining_seconds += PLAN_CONFIG['lifetime']['days'] * 86400
             active_codes.append(c)
+            has_lifetime = True
         else:
             days = PLAN_CONFIG.get(r['plan'], {}).get('days', 30)
             a_at = r.get('activated_at', 0)
@@ -563,6 +542,13 @@ def _calc_membership(db, phone):
                 if remain > 0:
                     total_remaining_seconds += remain
                     active_codes.append(c)
+
+    # 叠加手动时长调整（由 /api/adjust_duration 和 /api/set_duration 产生）
+    if not has_lifetime:
+        duration_adjust = db.get('_duration_adjust', {}).get(phone, 0)
+        total_remaining_seconds += duration_adjust
+        if total_remaining_seconds < 0:
+            total_remaining_seconds = 0
 
     return {
         'remaining_days': round(total_remaining_seconds / 86400, 1),
@@ -654,16 +640,14 @@ def api_delete_code():
         return jsonify({'success': False, 'msg': '密码错误'}), 403
 
     code = data.get('code', '').strip().upper()
-    with _db_lock:
-        db = load_db()
-        if code in db and not code.startswith('_'):
-            phone = db[code].get('phone', '')
-            del db[code]
-            save_db(db)
-        else:
-            return jsonify({'success': False, 'msg': '激活码不存在'})
-    audit_log('删除激活码', f'code={code}, phone={phone}, by={get_client_ip()}')
-    return jsonify({'success': True, 'msg': '已删除'})
+    db = load_db()
+    if code in db and not code.startswith('_'):
+        phone = db[code].get('phone', '')
+        del db[code]
+        save_db(db)
+        audit_log('删除激活码', f'code={code}, phone={phone}, by={get_client_ip()}')
+        return jsonify({'success': True, 'msg': '已删除'})
+    return jsonify({'success': False, 'msg': '激活码不存在'})
 
 # ============================================================
 # API：撤销激活码
@@ -676,20 +660,19 @@ def api_revoke_code():
         return jsonify({'success': False, 'msg': '密码错误'}), 403
 
     code = data.get('code', '').strip().upper()
-    with _db_lock:
-        db = load_db()
-        if code not in db or code.startswith('_'):
-            return jsonify({'success': False, 'msg': '激活码不存在'})
+    db = load_db()
+    if code not in db or code.startswith('_'):
+        return jsonify({'success': False, 'msg': '激活码不存在'})
 
-        rec = db[code]
-        if not rec['used']:
-            return jsonify({'success': False, 'msg': '该激活码未被激活'})
+    rec = db[code]
+    if not rec['used']:
+        return jsonify({'success': False, 'msg': '该激活码未被激活'})
 
-        rec['used'] = False
-        rec['phone'] = ''
-        rec.pop('activated_at', None)
-        rec['revoked_at'] = time.time()
-        save_db(db)
+    rec['used'] = False
+    rec['phone'] = ''
+    rec.pop('activated_at', None)
+    rec['revoked_at'] = time.time()
+    save_db(db)
     audit_log('撤销激活码', f'code={code}, by={get_client_ip()}')
     return jsonify({'success': True, 'msg': '已撤销'})
 
@@ -708,13 +691,12 @@ def api_fix_code():
     if not code or new_plan not in PLAN_CONFIG:
         return jsonify({'success': False, 'msg': '参数无效'}), 400
 
-    with _db_lock:
-        db = load_db()
-        if code not in db or code.startswith('_'):
-            return jsonify({'success': False, 'msg': '激活码不存在'})
+    db = load_db()
+    if code not in db or code.startswith('_'):
+        return jsonify({'success': False, 'msg': '激活码不存在'})
 
-        db[code]['plan'] = new_plan
-        save_db(db)
+    db[code]['plan'] = new_plan
+    save_db(db)
     audit_log('修改套餐', f'code={code}, new_plan={new_plan}, by={get_client_ip()}')
     return jsonify({'success': True, 'msg': f'已修改为{PLAN_CONFIG[new_plan]["label"]}'})
 
@@ -753,6 +735,139 @@ def api_calibrate():
                 'phone': rec.get('phone', '')})
 
     return jsonify({'success': True, 'msg': '校准完成', 'report': {'checked': checked, 'issues': issues}})
+
+# ============================================================
+# API：调整会员时长（增加/减少天数）
+# ============================================================
+
+@app.route('/api/adjust_duration', methods=['POST'])
+def api_adjust_duration():
+    data = request.get_json() or {}
+    if not check_password(data.get('password', '')):
+        return jsonify({'success': False, 'msg': '密码错误'}), 403
+
+    phone = (data.get('phone') or '').strip()
+    delta_days = data.get('delta_days')
+
+    if not phone or not is_valid_phone(phone):
+        return jsonify({'success': False, 'msg': '手机号格式不正确'})
+    if delta_days is None:
+        return jsonify({'success': False, 'msg': '缺少 delta_days 参数'})
+
+    try:
+        delta_days = int(delta_days)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'msg': 'delta_days 必须是整数'})
+
+    db = load_db()
+
+    # 检查该手机号是否有激活码
+    has_code = False
+    has_lifetime = False
+    for c, r in db.items():
+        if c.startswith('_'):
+            continue
+        if r.get('used') and r.get('phone') == phone:
+            has_code = True
+            if r['plan'] == 'lifetime':
+                has_lifetime = True
+                break
+
+    if not has_code:
+        return jsonify({'success': False, 'msg': '该手机号没有已激活的激活码'})
+    if has_lifetime:
+        return jsonify({'success': False, 'msg': '该手机号为终身会员，无需调整时长'})
+
+    # 应用时长调整
+    if '_duration_adjust' not in db:
+        db['_duration_adjust'] = {}
+    current_adjust = db['_duration_adjust'].get(phone, 0)
+    db['_duration_adjust'][phone] = current_adjust + delta_days * 86400
+    save_db(db)
+
+    result = _calc_membership(db, phone)
+    audit_log('调整时长', f'phone={phone}, delta={delta_days}天, 剩余={result["remaining_days"]}天, by={get_client_ip()}')
+    return jsonify({
+        'success': True,
+        'msg': f'已{"增加" if delta_days > 0 else "减少"} {abs(delta_days)} 天，当前剩余 {result["remaining_days"]} 天',
+        'remaining_days': result['remaining_days']
+    })
+
+# ============================================================
+# API：设置会员时长（设为指定天数）
+# ============================================================
+
+@app.route('/api/set_duration', methods=['POST'])
+def api_set_duration():
+    data = request.get_json() or {}
+    if not check_password(data.get('password', '')):
+        return jsonify({'success': False, 'msg': '密码错误'}), 403
+
+    phone = (data.get('phone') or '').strip()
+    set_days = data.get('set_days')
+
+    if not phone or not is_valid_phone(phone):
+        return jsonify({'success': False, 'msg': '手机号格式不正确'})
+    if set_days is None:
+        return jsonify({'success': False, 'msg': '缺少 set_days 参数'})
+
+    try:
+        set_days = int(set_days)
+        if set_days < 0:
+            return jsonify({'success': False, 'msg': '设置天数不能为负数'})
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'msg': 'set_days 必须是整数'})
+
+    db = load_db()
+
+    # 检查该手机号是否有激活码
+    has_code = False
+    has_lifetime = False
+    for c, r in db.items():
+        if c.startswith('_'):
+            continue
+        if r.get('used') and r.get('phone') == phone:
+            has_code = True
+            if r['plan'] == 'lifetime':
+                has_lifetime = True
+                break
+
+    if not has_code:
+        return jsonify({'success': False, 'msg': '该手机号没有已激活的激活码'})
+    if has_lifetime:
+        return jsonify({'success': False, 'msg': '该手机号为终身会员，无需设置时长'})
+
+    # 计算当前"自然剩余"（不含手动调整）
+    natural_remaining = 0
+    now = time.time()
+    for c, r in db.items():
+        if c.startswith('_') or not r.get('used') or r.get('phone') != phone:
+            continue
+        if r['plan'] == 'lifetime':
+            continue
+        days = PLAN_CONFIG.get(r['plan'], {}).get('days', 30)
+        a_at = r.get('activated_at', 0)
+        if a_at:
+            expire = a_at + days * 86400
+            remain = expire - now
+            if remain > 0:
+                natural_remaining += remain
+
+    # 设置调整值 = 目标时长 - 自然剩余
+    target_seconds = set_days * 86400
+    needed_adjust = int(target_seconds - natural_remaining)
+
+    if '_duration_adjust' not in db:
+        db['_duration_adjust'] = {}
+    db['_duration_adjust'][phone] = needed_adjust
+    save_db(db)
+
+    audit_log('设置时长', f'phone={phone}, set={set_days}天, by={get_client_ip()}')
+    return jsonify({
+        'success': True,
+        'msg': f'已设置剩余时长为 {set_days} 天',
+        'remaining_days': float(set_days)
+    })
 
 # ============================================================
 # API：用户列表
@@ -853,91 +968,22 @@ def api_health():
     return jsonify({'status': 'ok', 'time': time.time()})
 
 # ============================================================
-# 管理接口：查看和操作数据库
-# ============================================================
-
-@app.route('/admin/db', methods=['GET', 'POST'])
-def admin_db():
-    """查看数据库内容 / 操作数据库（重置某手机号的会员状态）
-    GET: 查看所有激活码
-    POST: {"action":"reset_phone","phone":"xxx"} 清除某手机号的所有激活
-    """
-    password = request.args.get('pwd') or (request.get_json(silent=True) or {}).get('pwd', '')
-    if not check_password(password):
-        return jsonify({'error': '需要密码'}), 403
-
-    db = _load_db_raw()
-
-    if request.method == 'POST':
-        body = request.get_json(silent=True) or {}
-        action = body.get('action', '')
-        if action == 'reset_phone':
-            phone = body.get('phone', '').strip()
-            if not phone:
-                return jsonify({'error': '缺少 phone 参数'}), 400
-            reset_count = 0
-            for c, r in db.items():
-                if c.startswith('_'):
-                    continue
-                if r.get('phone') == phone and r.get('used'):
-                    r['used'] = False
-                    r['revoked_at'] = time.time()
-                    r.pop('activated_at', None)
-                    reset_count += 1
-            save_db(db)
-            return jsonify({'success': True, 'msg': f'已重置 {phone} 的 {reset_count} 个激活码'})
-        return jsonify({'error': '未知操作'}), 400
-
-    # GET: 返回数据库摘要（隐藏完整激活码）
-    summary = {}
-    for c, r in db.items():
-        if c.startswith('_'):
-            continue
-        masked = c[:4] + '****' + c[-4:] if len(c) > 8 else c
-        summary[masked] = {
-            'used': r.get('used', False),
-            'phone': (r.get('phone', '')[:3] + '****' + r.get('phone', '')[-4:]) if r.get('phone') else '',
-            'plan': r.get('plan', ''),
-            'revoked': bool(r.get('revoked_at')),
-            'activated_at': r.get('activated_at')
-        }
-    return jsonify({'total': len(summary), 'codes': summary})
-
-# ============================================================
-# 管理接口：从 GitHub 同步最新文件（免手动上传，直连 GitHub raw）
+# 管理接口：从 GitHub 同步最新前端文件（免手动上传）
 # ============================================================
 
 @app.route('/admin/update', methods=['GET', 'POST'])
 def admin_update():
-    """从 GitHub 仓库同步最新文件到 PythonAnywhere
-    访问 https://18073951649.pythonanywhere.com/admin/update?pwd=你的密码 即可触发
-    改用 GitHub raw 直连，彻底避免 CDN 缓存问题
+    """从 GitHub 仓库同步最新前端文件到 PythonAnywhere
+    访问 https://18073951649.pythonanywhere.com/admin/update 即可触发
     """
-    import urllib.request, hashlib
+    import urllib.request
     password = request.args.get('pwd') or (request.get_json() or {}).get('pwd', '')
-    if not check_password(password):
-        return jsonify({'error': '需要密码'}), 403
+    if password != DEFAULT_PASSWORD:
+        return jsonify({'error': '需要密码 (?pwd=lxx218360lxx)'}), 403
 
-    # 支持直接上传：POST JSON body 中带 files 字段
-    body = request.get_json(silent=True) or {}
-    if body.get('direct'):
-        results = {}
-        for fname, content_b64 in body.get('files', {}).items():
-            try:
-                import base64
-                content = base64.b64decode(content_b64)
-                for target_dir in [WWW_DIR, BASE_DIR]:
-                    fpath = os.path.join(target_dir, fname)
-                    with open(fpath, 'wb') as f:
-                        f.write(content)
-                results[fname] = f'OK ({len(content)} bytes)'
-            except Exception as e:
-                results[fname] = f'FAIL: {str(e)[:100]}'
-        return jsonify({'success': True, 'results': results})
-
-    # 使用 GitHub raw 直连下载（彻底避免 CDN 缓存）
-    base_url = 'https://raw.githubusercontent.com/LXX218360/eye-guard-web/main/'
-    files_to_sync = ['app.js', 'index.html', 'style.css', 'hmac-security.js', 'api_server.py']
+    # GitHub 仓库中的前端文件（通过 jsdelivr CDN 代理，国内可访问）
+    base_url = 'https://cdn.jsdelivr.net/gh/LXX218360/eye-guard-web@main/'
+    files_to_sync = ['app.js', 'index.html', 'style.css', 'hmac-security.js']
     results = {}
     for fname in files_to_sync:
         try:
@@ -945,21 +991,12 @@ def admin_update():
             req = urllib.request.Request(url, headers={'User-Agent': 'PythonAnywhere-Update'})
             with urllib.request.urlopen(req, timeout=60) as resp:
                 content = resp.read()
-            remote_hash = hashlib.md5(content).hexdigest()
-
-            # api_server.py 正在运行，不能直接覆盖；下载为 .new 文件
-            if fname == 'api_server.py':
-                for target_dir in [WWW_DIR, BASE_DIR]:
-                    fpath = os.path.join(target_dir, fname + '.new')
-                    with open(fpath, 'wb') as f:
-                        f.write(content)
-                results[fname] = f'OK ({len(content)} bytes, hash={remote_hash}) -> saved as {fname}.new (需要重启)'
-            else:
-                for target_dir in [WWW_DIR, BASE_DIR]:
-                    fpath = os.path.join(target_dir, fname)
-                    with open(fpath, 'wb') as f:
-                        f.write(content)
-                results[fname] = f'OK ({len(content)} bytes, hash={remote_hash})'
+            # 同时写入 www/ 和根目录（兼容两种查找逻辑）
+            for target_dir in [WWW_DIR, BASE_DIR]:
+                fpath = os.path.join(target_dir, fname)
+                with open(fpath, 'wb') as f:
+                    f.write(content)
+            results[fname] = f'OK ({len(content)} bytes)'
         except Exception as e:
             results[fname] = f'FAIL: {str(e)[:100]}'
     return jsonify({'success': True, 'results': results})
@@ -998,12 +1035,7 @@ def api_free_usage():
     seconds = max(0, seconds)
 
     if action == 'report':
-        # 重新加载以获取最新数据，减少并发丢失（完整方案需用锁）
-        usage = load_usage()
-        if phone in usage and usage[phone].get('last_reset') == today:
-            usage[phone]['total_seconds'] = max(0, usage[phone].get('total_seconds', 0) + seconds)
-        else:
-            usage[phone] = {'total_seconds': seconds, 'last_reset': today}
+        usage[phone]['total_seconds'] = max(0, usage[phone].get('total_seconds', 0) + seconds)
         save_usage(usage)
         remaining = max(0, FREE_DAILY_SECONDS - usage[phone]['total_seconds'])
         return jsonify({
@@ -1033,31 +1065,25 @@ def api_free_usage():
 def serve_index():
     """主页面（覆盖上面的 placeholder）"""
     for fname in ['index.html', 'eye-guard-user.html', 'eye-guard-user-readonly.html']:
-        fpath, sdir, actual_name = _find_static_file(fname)
+        fpath, sdir = _find_static_file(fname)
         if fpath:
-            try:
-                resp = send_from_directory(sdir, actual_name)
-                resp.headers['Cache-Control'] = 'no-cache'
-                return resp
-            except Exception:
-                continue
+            resp = send_from_directory(sdir, fname)
+            resp.headers['Cache-Control'] = 'no-cache'
+            return resp
     return '<h1>护眼精灵</h1><p>未找到 index.html，请上传到 Files 根目录或 www/ 子目录</p>', 404
 
 @app.route('/<path:filename>')
 def serve_static(filename):
     """提供前端静态文件（JS/CSS/HTML/模型等）"""
-    fpath, sdir, actual_name = _find_static_file(filename)
+    fpath, sdir = _find_static_file(filename)
     if fpath:
-        try:
-            resp = send_from_directory(sdir, actual_name)
-            fsize = os.path.getsize(fpath)
-            if fsize > 100000:
-                resp.headers['Cache-Control'] = 'public, max-age=86400'
-            else:
-                resp.headers['Cache-Control'] = 'no-cache'
-            return resp
-        except Exception:
-            return '<h1>404</h1><p>File not found</p>', 404
+        resp = send_from_directory(sdir, filename)
+        fsize = os.path.getsize(fpath)
+        if fsize > 100000:
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+        else:
+            resp.headers['Cache-Control'] = 'no-cache'
+        return resp
     return '<h1>404</h1><p>File not found</p>', 404
 
 # ============================================================
