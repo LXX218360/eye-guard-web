@@ -15,20 +15,29 @@
       if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) { e.preventDefault(); return false; }
       if (e.ctrlKey && e.key === 'U') { e.preventDefault(); return false; }
     }, true);
-    // 第3层：DevTools检测（debugger陷阱 + 尺寸变化检测）
+    // 第3层：DevTools检测（优化版 — 避免误判）
     (function detectDevTools() {
-      const threshold = 160;
+      const threshold = 300;            // 300px阈值，排除地址栏/书签栏/滚动条等正常差异
+      let confirmCount = 0;             // 连续确认计数
+      const requiredConfirmations = 3; // 需要连续3次（约6秒）才触发锁定
+      let locked = false;
       const check = function() {
-        if ((window.outerWidth - window.innerWidth) > threshold || (window.outerHeight - window.innerHeight) > threshold) {
-          document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:CONSTANTS.DEVTOOLS_BG;color:CONSTANTS.DEVTOOLS_TEXT;font-size:18px;">&#x1F6AB; 检测到开发者工具，页面已锁定</div>';
+        const wDiff = window.outerWidth - window.innerWidth;
+        const hDiff = window.outerHeight - window.innerHeight;
+        const detected = (wDiff > threshold) || (hDiff > threshold);
+        if (detected) {
+          confirmCount++;
+          if (confirmCount >= requiredConfirmations && !locked) {
+            locked = true;
+            document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:CONSTANTS.DEVTOOLS_BG;color:CONSTANTS.DEVTOOLS_TEXT;font-size:18px;">&#x1F6AB; 检测到开发者工具，页面已锁定</div>';
+          }
+        } else {
+          confirmCount = 0;
+          locked = false;
         }
       };
       window.addEventListener('resize', check);
-      setInterval(check, 1000);
-      // debugger陷阱
-      setInterval(function() {
-        (function() {}.constructor('debugger')());
-      }, 200);
+      setInterval(check, 2000);
     })();
   })();
 
